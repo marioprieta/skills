@@ -32,8 +32,28 @@ On SDK 55+, do NOT add `react-native-reanimated/plugin` — `babel-preset-expo` 
 6. `onThemeChange` is the only guaranteed callback — `onTransitionEnd` skips on capture failure.
 7. Don't change styles based on `isTransitioning` — the screenshot captures current visuals.
 8. No native `<Switch>` — use a custom toggle with `useTheme({})` and plain React styles.
-9. No `style={({ pressed }) => (...)}` — use static `style={{...}}`.
+9. No `style={({ pressed }) => (...)}` — use static `style={{...}}`. The screenshot captures the current visual state; if the pressed state at capture time differs from when the overlay fades out, it causes a visible flash.
 10. Selection tracking: any component whose visual state changes on theme switch must use `useTheme({})` or `useTheme({ initialSelection })`.
+11. Hydration-only bridge when using `select()`: `select()` updates the visual selection state, then defers `setTheme()` by one frame. A reactive bridge (`useEffect → setTheme` on every store change) races with this deferred timing and reverts the pill. Use a bridge that syncs once on hydration, then let the picker call `select()` + store setter together in `onPress`.
+12. Picker highlight from `selected`, not the store: `selected` (from `useTheme({ initialSelection })`) updates synchronously before the screenshot capture. Store state updates asynchronously and would show the wrong highlight.
+
+## Which hook should I use?
+
+| Scenario | Call |
+|---|---|
+| Just need colors | `useTheme().colors` (or `useColors()` shorthand) |
+| Need theme name + colors + setTheme | `useTheme()` |
+| Component has a visual indicator that changes on selection (toggle thumb, pill, checkmark) | `useTheme({})` or `useTheme({ initialSelection })` |
+| Visual indicator + external persistence (Zustand, Redux, MMKV) | `useTheme({ initialSelection: storeValue })` with hydration-only bridge |
+
+## How it works (30-second version)
+
+1. `setTheme()` is called → touch input blocked immediately (Reanimated shared value)
+2. Library waits 2 frames for React to paint any pending state changes
+3. Screenshot of current UI is captured and placed as an overlay at full opacity
+4. Colors are switched underneath (React context update → all children re-render with new colors)
+5. Overlay fades out over `duration` ms → user sees smooth crossfade
+6. Overlay removed, touch unblocked, `isTransitioning` returns to `false`
 
 ## Reference guides
 

@@ -5,8 +5,9 @@ Common issues, causes, and solutions.
 ## Table of contents
 
 1. [iOS picker flickering during transition](#ios-picker-flickering-during-transition)
-2. [Overlay stays visible / app seems frozen](#overlay-stays-visible--app-seems-frozen)
-3. [Native Switch flickers during theme transition](#native-switch-flickers-during-theme-transition)
+2. [Picker pill flashes back after tapping](#picker-pill-flashes-back-after-tapping)
+3. [Overlay stays visible / app seems frozen](#overlay-stays-visible--app-seems-frozen)
+4. [Native Switch flickers during theme transition](#native-switch-flickers-during-theme-transition)
 4. [Flash on theme change (no animation)](#flash-on-theme-change-no-animation)
 5. [System theme not following OS](#system-theme-not-following-os)
 6. [Type errors on colors](#type-errors-on-colors)
@@ -59,6 +60,31 @@ requestAnimationFrame(() => {
 
 See [Recipes: Theme picker](recipes.md#theme-picker-with-selection-tracking) for
 complete examples.
+
+---
+
+## Picker pill flashes back after tapping
+
+**Symptom:** Tapping a theme option briefly highlights it, then the pill snaps
+back to the previous selection. The theme changes but the picker is wrong.
+
+**Cause:** A reactive bridge (`useEffect → setTheme` on every store change)
+fires before `select()`'s deferred `requestAnimationFrame`. The bridge steals
+the transition, and when `select()`'s `setTheme` runs, `transitioningRef` is
+`true` → returns `false` → `select()` reverts the pill.
+
+**Fix:** Use a **hydration-only bridge** that syncs once on app start, then let
+the picker call `select()` + store setter directly in `onPress`:
+
+```tsx
+onPress={() => {
+  select(mode);       // visual transition
+  setColorMode(mode); // persistence
+}}
+```
+
+See [Recipes: Persisted preference](recipes.md#persisted-preference-with-system-option)
+for the full Zustand pattern with hydration-only bridge.
 
 ---
 
@@ -121,6 +147,12 @@ and the error wasn't caught, or the component unmounted mid-transition.
   or check native linking.
 - Ensure the root `View` inside the provider has `collapsable={false}` (set
   internally — if you've forked the library, verify this).
+
+Common causes of screenshot capture failure:
+- The provider's root view is unmounted or not yet laid out
+- The view is outside visible screen bounds (e.g., in a non-focused tab)
+- The view has zero dimensions (collapsed layout)
+- On Android: hardware acceleration disabled on the view hierarchy
 
 ---
 
@@ -332,8 +364,7 @@ You're calling `useTheme()` in a component that isn't a descendant of
    Wait for `isTransitioning` to become `false`. Note: `setTheme('system')` during
    a transition does **not** activate system mode — the call is fully rejected.
    Retry after the transition completes.
-3. **System mode dedup** — `setTheme('system')` when the OS-resolved theme matches
-   the current theme activates system mode but doesn't trigger a visual change.
+3. **System mode dedup** — `setTheme('system')` when the OS-resolved theme matches the current theme activates system mode but doesn't trigger a visual change. `isTransitioning` stays `false`. The library calls `Appearance.setColorScheme('unspecified')` via the `isSystemMode` effect to lift the explicit override, so future OS changes are detected.
 
 ---
 
@@ -345,22 +376,18 @@ You're calling `useTheme()` in a component that isn't a descendant of
 a bridge component fires `setTheme` with a different stored preference (e.g., `'dark'`),
 triggering an animated transition.
 
-**Fixes:**
+**Fix:** Pass the stored preference directly as `initialTheme`:
 
-1. **Pass the stored preference as `initialTheme`:**
-   ```tsx
-   const themePreference = useThemeStore((s) => s.themePreference);
-   <ThemeTransitionProvider initialTheme={themePreference}>
-   ```
+```tsx
+const colorMode = useThemeStore((s) => s.colorMode);
+<ThemeTransitionProvider initialTheme={colorMode}>
+```
 
-2. **Use instant switch in bridge for first render:**
-   ```tsx
-   const isFirstRender = useRef(true);
-   useEffect(() => {
-     setTheme(themePreference, { animated: !isFirstRender.current });
-     isFirstRender.current = false;
-   }, [themePreference, setTheme]);
-   ```
+**By state manager:**
+- **Zustand**: pass `initialTheme={colorMode}` and use a hydration-only bridge. See [Recipes: Persisted preference](recipes.md#persisted-preference-with-system-option).
+- **Redux**: use a `didSync` ref guard in the bridge to prevent re-running after the first sync.
+- **MMKV**: no bridge needed — reads are synchronous. Pass `initialTheme={store.getString('theme-preference') ?? 'system'}` directly.
+- **Plain AsyncStorage**: delay provider mount until the stored value is read (show splash screen while loading).
 
 ---
 
@@ -381,3 +408,28 @@ triggering an animated transition.
 
 3. **View not fully rendered** — If the capture happens before the view is laid out,
    it returns blank. The library waits 1 frame before capture to prevent this.
+
+---
+
+## Fast Refresh / Hot Reload issues
+
+**Symptom:** After saving a file during development, the overlay stays visible,
+system mode stops following the OS, or the theme reverts unexpectedly.
+
+**Causes:**
+
+1. **Overlay persists after Fast Refresh** — If a transition was in progress when
+   the JS bundle reloaded, the overlay may remain visible. The library's refs
+   reinitialize on remount but the overlay's cleanup callback may not fire.
+
+2. **Native Appearance state persists across JS reloads** — `Appearance.setColorScheme`
+   from the previous session is NOT reset by Fast Refresh (it's native state).
+   `lastKnownOsSchemeRef` initializes from the current (potentially stale) value,
+   so system mode may not detect the real OS scheme.
+
+3. **Refs reinitialize but native state does not** — `transitioningRef`,
+   `systemModeRef`, etc. reset to defaults on remount, but the native Appearance
+   override from the previous session persists.
+
+**Fix:** Perform a full reload (`Cmd+R` / `R R` in Metro) or restart the app.
+These issues only occur during development and do not affect production builds.

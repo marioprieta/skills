@@ -197,7 +197,7 @@ export default function RootLayout() {
 ```
 
 Key points:
-- `ThemeTransitionProvider` inside `GestureHandlerRootView` but wrapping all navigation
+- `ThemeTransitionProvider` inside `GestureHandlerRootView` but wrapping all navigation — the screenshot captures everything inside the provider, so navigation chrome (headers, tab bars) must be inside to be included in the crossfade
 - `StatusBarSync` must be inside the provider (it uses `useTheme`)
 - `initialTheme="system"` for OS-following by default
 
@@ -310,3 +310,14 @@ function Logo() {
   );
 }
 ```
+
+---
+
+## Which hook should I use?
+
+| Scenario | Call |
+|---|---|
+| Just need colors | `useTheme().colors` (or `useColors()` shorthand) |
+| Need theme name + colors + setTheme | `useTheme()` |
+| Component has a visual indicator that changes on selection (toggle thumb, pill, checkmark) | `useTheme({})` or `useTheme({ initialSelection })` |
+| Visual indicator + external persistence (Zustand, Redux, MMKV) | `useTheme({ initialSelection: storeValue })` with hydration-only bridge |

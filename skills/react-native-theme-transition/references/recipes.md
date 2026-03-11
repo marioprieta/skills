@@ -62,6 +62,11 @@ setTheme('dark');    // exit — manual mode, ignores OS
 
 Store the user's choice as `'light' | 'dark' | 'system'` and pass it directly.
 
+> **Important:** If your picker uses `select()` for flicker-free selection, use a
+> **hydration-only bridge** — not a reactive one. A reactive bridge (`useEffect →
+> setTheme` on every store change) races with `select()`'s deferred timing, steals
+> the transition, and reverts the pill. See the "Why hydration-only?" table below.
+
 ### With AsyncStorage + Zustand
 
 ```ts
@@ -69,8 +74,8 @@ Store the user's choice as `'light' | 'dark' | 'system'` and pass it directly.
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      themePreference: 'system' as 'system' | 'light' | 'dark',
-      setThemePreference: (pref) => set({ themePreference: pref }),
+      colorMode: 'system' as 'system' | 'light' | 'dark',
+      setColorMode: (mode) => set({ colorMode: mode }),
     }),
     {
       name: 'theme-store',
@@ -81,18 +86,26 @@ export const useThemeStore = create<ThemeState>()(
 ```
 
 ```tsx
-// Root layout
+// Root layout — hydration-only bridge
+/** Syncs persisted Zustand preference on hydration — not on every change. */
 function ThemeBridge() {
-  const themePreference = useThemeStore((s) => s.themePreference);
   const { setTheme } = useTheme();
-  useEffect(() => { setTheme(themePreference); }, [themePreference, setTheme]);
+
+  useEffect(() => {
+    const sync = () => setTheme(useThemeStore.getState().colorMode);
+    if (useThemeStore.persist.hasHydrated()) {
+      sync();
+    }
+    return useThemeStore.persist.onFinishHydration(sync);
+  }, [setTheme]);
+
   return null;
 }
 
 export default function RootLayout() {
-  const themePreference = useThemeStore((s) => s.themePreference);
+  const colorMode = useThemeStore((s) => s.colorMode);
   return (
-    <ThemeTransitionProvider initialTheme={themePreference}>
+    <ThemeTransitionProvider initialTheme={colorMode}>
       <ThemeBridge />
       <App />
     </ThemeTransitionProvider>
@@ -101,20 +114,57 @@ export default function RootLayout() {
 ```
 
 ```tsx
-// Settings screen
+// Settings screen — select() + store setter in onPress
 function ThemeSettings() {
-  const setThemePreference = useThemeStore((s) => s.setThemePreference);
+  const colorMode = useThemeStore((s) => s.colorMode);
+  const setColorMode = useThemeStore((s) => s.setColorMode);
+  const { colors, isTransitioning, selected, select } = useTheme({
+    initialSelection: colorMode,
+  });
+  const options = ['system', 'light', 'dark'] as const;
+
   return (
-    <>
-      <Button title="Light"  onPress={() => setThemePreference('light')} />
-      <Button title="Dark"   onPress={() => setThemePreference('dark')} />
-      <Button title="System" onPress={() => setThemePreference('system')} />
-    </>
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {options.map((mode) => (
+        <Pressable
+          key={mode}
+          onPress={() => {
+            select(mode);       // visual transition
+            setColorMode(mode); // persistence
+          }}
+          disabled={isTransitioning}
+          style={{
+            flex: 1, padding: 12, borderRadius: 8, alignItems: 'center',
+            backgroundColor: mode === selected ? colors.primary : 'transparent',
+          }}
+        >
+          <Text style={{ color: mode === selected ? '#fff' : colors.text }}>
+            {mode}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 ```
 
+### Why hydration-only?
+
+| Concern | How it's handled |
+|---|---|
+| Hydration timing | `hasHydrated()` + `onFinishHydration` covers both "already hydrated" and "not yet" |
+| First render | Gets Zustand's default (`'system'`). ThemeBridge corrects behind the splash screen |
+| Pill highlight | Driven by `selected` (from hook), not `colorMode` (from store) |
+| Persistence | `setColorMode()` runs alongside `select()` in `onPress` |
+| No race | ThemeBridge only calls `setTheme` once on hydration. Picker uses `select()` only |
+| Screen remount | `useTheme({ initialSelection: colorMode })` re-initializes from store |
+
 ### With plain AsyncStorage (no Zustand)
+
+> **Note:** This example uses `setTheme()` directly, which works for simple
+> buttons without a visual selection indicator (pill/highlight). If your UI has
+> a picker with a highlighted selection, use `select()` instead — see the
+> [Theme picker recipe](#theme-picker-with-selection-tracking).
 
 ```tsx
 function ThemeSettings() {
@@ -180,6 +230,7 @@ iOS 120Hz timing and rapid-press protection:
 ```tsx
 function ThemePicker() {
   const { selected, select, colors, isTransitioning } = useTheme({ initialSelection: 'system' });
+  // `as const` narrows to a tuple of literal types, so TypeScript infers the correct union for `option`.
   const options = ['system', 'sunrise', 'midnight', 'ocean'] as const;
 
   return (
@@ -375,12 +426,12 @@ function StatusBarSync() {
 
 ```tsx
 function StatusBarSync() {
-  const themePreference = useThemeStore((s) => s.themePreference);
+  const colorMode = useThemeStore((s) => s.colorMode);
   return (
     <StatusBar
       style={
-        themePreference === 'dark' ? 'light'
-        : themePreference === 'light' ? 'dark'
+        colorMode === 'dark' ? 'light'
+        : colorMode === 'light' ? 'dark'
         : 'auto'
       }
     />
@@ -720,3 +771,13 @@ export function ThemeList() {
   );
 }
 ```
+
+---
+
+## Combining recipes
+
+Recipes show isolated patterns. When combining multiple (e.g., persistence + React
+Navigation + StatusBar sync), verify they don't conflict. The most common conflict:
+two callers of `setTheme` for the same change (e.g., a picker calling `select()` AND
+a reactive bridge calling `setTheme()` from a store subscription). Only one caller
+should trigger `setTheme` per theme change.

@@ -73,6 +73,11 @@ createThemeTransition({
 
 Both `light` and `dark` must be provided. Values must reference existing theme names.
 
+If `systemThemeMap` maps to a theme name that doesn't exist in `themes`, the library throws
+when `setTheme('system')` is called:
+
+> `Error: setTheme("system") resolved to "midnight" which does not exist in themes.`
+
 ### `darkThemes`
 
 Theme names that use a dark color scheme. The library calls `Appearance.setColorScheme`
@@ -130,7 +135,7 @@ React component. Wraps your app tree and provides theme context.
 
 ### `initialTheme` behavior
 
-- Read once in a lazy `useState` initializer — subsequent prop changes are ignored
+- Read once when the provider first mounts. If a parent re-renders and passes a different `initialTheme`, the provider ignores it. To change themes after mount, call `setTheme()`
 - `'system'` reads OS appearance synchronously (zero flash) and subscribes to changes
 - With custom names: requires `systemThemeMap` in config, otherwise throws
 - An explicit theme name (e.g. `'dark'`) does not subscribe to OS changes
@@ -314,6 +319,10 @@ interface SetThemeOptions {
 | `onTransitionStart` | — | Fires after config-level callback, animated only |
 | `onTransitionEnd` | — | Fires after config-level callback, animated only |
 
+`setTheme()` is synchronous — it returns `true` or `false` immediately. Internally, it
+activates touch blocking (via Reanimated shared value) and queues the async transition
+(screenshot → fade). The function call itself is not async.
+
 ### Behavior rules
 
 1. **Same theme** → returns `false` (if target equals current, nothing happens)
@@ -322,6 +331,17 @@ interface SetThemeOptions {
 4. **Explicit name** → exits system-following mode
 5. **`animated: false`** → instant switch, only `onThemeChange` fires
 6. **Capture failure** → falls back to instant switch, `onTransitionEnd` skipped
+
+### Return value cheat sheet
+
+| Call | Returns | Why |
+|---|---|---|
+| `setTheme('dark')` while on light | `true` | Different theme, transition starts |
+| `setTheme('dark')` while on dark | `false` | Same theme, no-op |
+| `setTheme('dark')` during transition | `false` | Transition in progress, rejected |
+| `setTheme('system')` from explicit | `true` | Mode changed (explicit → system) |
+| `setTheme('light')` from system-light | `true` | Mode changed (system → explicit) |
+| `setTheme('system')` while in system | `false` | Already in system mode |
 
 ### System mode
 
@@ -385,6 +405,16 @@ to a missing matching `onTransitionEnd`.
 
 Uses the same animated or instant paths above. In foreground: animated. In background
 or returning to foreground: instant (`animated: false`).
+
+### Callback summary
+
+| Event | onTransitionStart | onTransitionEnd | onThemeChange |
+|---|:---:|:---:|:---:|
+| Animated transition | Yes | Yes | Yes |
+| `animated: false` | No | No | Yes |
+| Capture failure | Yes (already fired) | **No** | Yes |
+| System-driven (foreground) | Yes | Yes | Yes |
+| System-driven (background) | No | No | Yes |
 
 ---
 
