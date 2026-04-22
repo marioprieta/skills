@@ -2,7 +2,7 @@
 name: react-native-theme-transition
 description: "Animated dark mode and theme transitions for React Native, v2 Skia engine with 9 transition styles. TRIGGER when: code imports react-native-theme-transition, user works with createThemeTransition/ThemeTransitionProvider/useTheme, implements animated dark mode toggling, system theme following, theme persistence, React Navigation or Expo Router theme integration, picks between fade/circularReveal/heart/star/wipe/slide/split/pixelize/dissolve, or debugs transition issues (stuck overlay, flash, capture failure). DO NOT TRIGGER when: general React Native styling, non-animated theme switching, or web-only theming."
 license: MIT
-compatibility: "react >= 19.0.0, react-native >= 0.78.0, react-native-reanimated >= 4.0.0, @shopify/react-native-skia >= 2.0.0, react-native-worklets >= 0.5.0. Works in Expo Go on SDK 54+ (Skia and Reanimated are bundled). Bare React Native CLI also supported."
+compatibility: "react >= 19.0.0, react-native >= 0.78.0, react-native-reanimated >= 4.0.0, @shopify/react-native-skia >= 2.0.0, react-native-worklets >= 0.5.0. Works in Expo Go on SDK 55+ (earlier SDKs bundle older Skia/Reanimated native bindings). Bare React Native CLI also supported."
 metadata:
   author: marioprieta
   version: "2.0.0"
@@ -18,7 +18,7 @@ underneath, and animates the snapshot away with one of nine styles.
 
 ## Installation
 
-Expo (SDK 54+):
+Expo (SDK 55+):
 
 ```bash
 npx expo install react-native-theme-transition @shopify/react-native-skia \
@@ -26,11 +26,14 @@ npx expo install react-native-theme-transition @shopify/react-native-skia \
 ```
 
 Add `react-native-worklets/plugin` as the **last plugin** in `babel.config.js`.
-On Expo SDK 55+, do NOT add `react-native-reanimated/plugin` — `babel-preset-expo`
-already includes it.
+Do NOT add `react-native-reanimated/plugin` — `babel-preset-expo` already
+includes it on SDK 55+.
 
-v2 works in Expo Go on SDK 54+ because Skia and Reanimated are now bundled
-into the Go client. No `expo prebuild` is required for managed Expo apps.
+v2 works in Expo Go on SDK 55+ because the Go client there bundles Skia 2
+and Reanimated 4 native bindings. SDK 54 and below bundle older native
+modules that are incompatible at runtime (freeze on Android, silent instant
+swap on iOS), so upgrade the Expo SDK before installing the library. No
+`expo prebuild` is required for managed Expo apps.
 Bare React Native CLI projects install the native modules normally via
 `pod install` (iOS) and the Gradle sync (Android).
 
@@ -150,7 +153,7 @@ instead of the whole tree.
 | File | What's in it |
 |---|---|
 | [references/overview.md](references/overview.md) | What the library is, highlights, comparison table, trade-offs, requirements |
-| [references/getting-started.md](references/getting-started.md) | Install + peer deps (Expo SDK 54+, older Expo, RN CLI), babel config, New Architecture check |
+| [references/getting-started.md](references/getting-started.md) | Install + peer deps (Expo SDK 55+, RN CLI), babel config, New Architecture check |
 | [references/quick-start.md](references/quick-start.md) | Three-step setup: define themes → wrap app → consume hook |
 | [references/types.md](references/types.md) | Every exported TypeScript type with field-level reference, inference patterns, `satisfies` vs `:` footgun |
 

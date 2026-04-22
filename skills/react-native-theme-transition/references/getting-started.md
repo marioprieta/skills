@@ -9,7 +9,14 @@ Reanimated 4 builds on).
 
 ## Installation
 
-**Expo (SDK 54+):**
+> **Expo SDK 55+ required.** The library depends on Skia 2 and
+> Reanimated 4 native bindings, which only ship with Expo Go on
+> SDK 55 and newer. On SDK 54 and below the JS side installs fine
+> but the native modules are older and incompatible at runtime
+> (freeze on Android, silent instant swap on iOS). Upgrade first
+> with `npx expo install expo@latest --fix`.
+
+**Expo (SDK 55+):**
 
 Reanimated and Skia ship with modern Expo SDKs, so you don't need
 to install Reanimated separately.
@@ -18,16 +25,10 @@ to install Reanimated separately.
 npx expo install react-native-theme-transition @shopify/react-native-skia react-native-worklets
 ```
 
-> **Note.** **Expo SDK 55+:** the blank template no longer bundles
+> **Note.** The SDK 55 blank template no longer bundles
 > `babel-preset-expo`. If your project doesn't have a
 > `babel.config.js` yet, install it:
 > `npx expo install babel-preset-expo`.
-
-**Expo (SDK < 54):**
-
-```bash
-npx expo install react-native-theme-transition @shopify/react-native-skia react-native-reanimated react-native-worklets
-```
 
 **React Native CLI:**
 
@@ -64,7 +65,7 @@ matrix.
 
 Skia 2 and Reanimated 4 require React Native's New Architecture
 (Fabric + TurboModules). On React Native 0.78+ it is enabled by
-default. Expo SDK 54+ already enables it for managed apps.
+default. Expo SDK 55+ already enables it for managed apps.
 
 Bare React Native CLI projects upgraded from older versions can
 still have the old architecture wired in. Confirm before installing:
@@ -87,9 +88,8 @@ module.exports = function (api) {
   return {
 presets: ['babel-preset-expo'],
 plugins: [
-  // SDK 55+: do NOT add 'react-native-reanimated/plugin'.
-  // babel-preset-expo already includes it from SDK 55 onwards.
-  // SDK 54 and below: you DO need 'react-native-reanimated/plugin' here.
+  // Do NOT add 'react-native-reanimated/plugin' — babel-preset-expo
+  // already includes it on SDK 55+.
   'react-native-worklets/plugin', // must be last
 ],
   }
