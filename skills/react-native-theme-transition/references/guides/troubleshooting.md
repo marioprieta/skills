@@ -1,0 +1,299 @@
+# Troubleshooting
+
+Each entry follows the same shape: what you're seeing, what's
+actually happening underneath, and the smallest change that fixes it.
+If your issue isn't here, search the
+[GitHub issues](https://github.com/marioprieta/react-native-theme-transition/issues)
+or open a new one with a minimal repro.
+
+## Picker Doesn't Highlight the 'system' Row
+
+**Symptom.** The `'system'` option never highlights, even after you
+tap it. `light` and `dark` work fine.
+
+**Cause.** You're driving the highlight from `theme.name`.
+`theme.name` is always the concrete painted theme. When the user
+picks `'system'` it resolves to `'light'` or `'dark'`, and the
+`'system'` row can never win the comparison.
+
+**Fix.** Compare against `preference`. It carries the raw value
+the user passed to `setTheme` (including `'system'`) and updates
+synchronously, so the highlight repaints before the snapshot.
+
+```tsx
+const { preference, setTheme, isTransitioning } = useTheme()
+
+<Pressable
+  disabled={isTransitioning}
+  onPress={() => setTheme('system')}
+  style={{ opacity: preference === 'system' ? 1 : 0.5 }}
+/>
+```
+
+See the [theme vs preference decision table](../api/use-theme.md#theme-vs-preference)
+for every case.
+
+## Native Switch Flickers in the Snapshot
+
+**Symptom.** On iOS, a native `<Switch>` thumb is caught mid-slide in
+the snapshot.
+
+**Cause.** iOS `UISwitch` runs a ~250 ms Core Animation with no
+completion callback. The snapshot is taken while the thumb is still
+moving.
+
+**Fix.** Use a [custom toggle](../examples/theme-toggle.md) built with
+plain React styles. Optimistic state updates paint in the same commit,
+so the snapshot catches the final position.
+
+## Overlay Stays Visible / App Frozen
+
+**Symptom.** A transition starts but the overlay never goes away, or
+the app feels stuck.
+
+**Check.**
+
+- The Metro console for `[react-native-theme-transition] Failed to capture` warnings.
+- That `@shopify/react-native-skia` is installed (`npx expo doctor`).
+- That `ThemeTransitionProvider` actually wraps the visible tree.
+- That `react-native-worklets/plugin` is the **last** entry in your `babel.config.js`.
+
+## Theme Change Is Instant Instead of Animated
+
+**Symptom.** No animation. The colors just snap.
+
+**Causes.**
+
+1. `animated: false` set per call or at config level.
+2. `@shopify/react-native-skia` missing or not installed for your platform. The snapshot throws and the library falls back to instant.
+3. `ThemeTransitionProvider` is not wrapping the visible tree.
+4. `react-native-worklets/plugin` is missing or not last in `babel.config.js`.
+
+Restart with `npx expo start -c` after fixing.
+
+## Reveal Starts From the Wrong Place
+
+**Symptom.** `circularReveal`, `heart`, or `star` always starts from
+the screen center, no matter where you tapped.
+
+**Cause.** The `origin` ref had unmounted by the time the snapshot
+ran, or the view it pointed to was outside the provider, so
+`measure()` came back empty and the library fell back to screen
+center.
+
+**Fix.** Pass an explicit `{ x, y }`, or make sure the ref survives
+until `onTransitionEnd`:
+
+```tsx
+const buttonRef = useRef<View>(null)
+
+<Pressable
+  ref={buttonRef}
+  onPress={() => setTheme('dark', { transition: 'circularReveal', origin: buttonRef })}
+/>
+```
+
+## iOS Safe-Area Background Doesn't Follow the Theme
+
+**Symptom.** On iOS, the top status-bar area and the bottom home-bar
+area stay light (or dark) regardless of the active theme. The middle
+content is themed correctly.
+
+**Cause.** `react-native-screens` paints an opaque
+`UINavigationController` background in the safe-area zones using the
+OS system color, covering the provider's wrapper background.
+
+**Fix.** Wrap your navigation tree with `ThemeProvider` from
+`@react-navigation/native`. React Navigation's native-stack reads
+`colors.background` from that provider via `useTheme()` and applies
+it to every Screen automatically. See
+[Expo Router](../recipes/expo-router.md) for the canonical pattern.
+
+## Android: Light Strip Behind Scrolled Content
+
+**Symptom.** Content below the fold of a root `ScrollView` briefly
+flashes the old theme's background during a transition. iOS is fine.
+
+**Cause.** Android `ScrollView` caches `backgroundColor` in its
+drawing cache. When you set it on the `ScrollView`'s `style`, only
+the visible rect invalidates on a theme change. Off-screen content
+keeps the old color until you scroll.
+
+**Fix.** Put the background on `contentContainerStyle`, not `style`:
+
+```tsx
+<ScrollView
+  style={{ flex: 1 }}
+  contentContainerStyle={{
+backgroundColor: theme.colors.background,
+minHeight: '100%',
+  }}
+/>
+```
+
+The same rule applies to `FlatList` and `SectionList`.
+
+## Fast Refresh Issues
+
+**Symptom.** After a save during development, the overlay stays up or
+system mode stops following the OS.
+
+**Cause.** Fast Refresh reloads JS but leaves native state alone. If
+a transition was in flight when you saved, the cleanup never runs.
+
+**Fix.** Full reload (`Cmd+R` on iOS Simulator, `R R` on Android).
+Development only; never happens in production builds.
+
+## Theme Picker Is Missing New Transition Types
+
+**Fix.** Import the list instead of hardcoding it:
+
+```tsx
+import { TRANSITION_TYPES } from 'react-native-theme-transition'
+
+{TRANSITION_TYPES.map((t) => (
+  <Pressable key={t} onPress={() => setTheme('dark', { transition: t })}>
+<Text>{t}</Text>
+  </Pressable>
+))}
+```
+
+`TRANSITION_TYPES` is derived from the internal registry. Adding a
+new transition kind to the library updates this array
+automatically.
+
+## System Theme Not Following OS
+
+**Causes.**
+
+1. You never entered system mode. Call `setTheme('system')` or pass `initialTheme="system"`.
+2. A later `setTheme('dark')` exited system mode. Re-enter with `setTheme('system')`.
+3. Custom theme names without `systemThemeMap`. Add one, or rename your themes to `'light'` and `'dark'`.
+4. iOS Simulator. Toggle appearance with `Cmd + Shift + A`.
+
+## TypeScript Errors on Color Tokens
+
+**Symptom.** `Property 'myToken' does not exist on type '{ ... }'`.
+
+**Cause.** All themes must share identical keys; the type inference
+fails when one theme has a token the others don't.
+
+**Fix.**
+
+```ts
+const light = { background: '#fff', text: '#000' }
+const dark: Record<keyof typeof light, string> = {
+  background: '#000',
+  text: '#fff',
+}
+```
+
+The `Record<keyof typeof light, string>` annotation makes TypeScript
+enforce key parity at definition time, so the error surfaces in the
+theme file rather than at every usage site.
+
+## `setTheme` Returns `'ignored'`
+
+`setTheme` returns `'accepted' | 'ignored'`. It returns `'ignored'`
+when:
+
+1. You asked for the same preference that's already active.
+2. A transition is already running.
+
+Wait until `isTransitioning` is `false` before retrying. The library
+already blocks touch input during the animation, so the user cannot
+trigger a second call themselves. This only matters for programmatic
+callers.
+
+## Double Transition on App Start
+
+**Symptom.** The app shows one theme briefly, then transitions to the
+stored preference.
+
+**Cause.** `initialTheme` resolves to one theme, then a bridge
+component calls `setTheme` with a different stored preference.
+
+**Fix.** Pass the stored preference directly as `initialTheme`:
+
+```tsx
+const colorMode = useThemeStore((s) => s.colorMode)
+<ThemeTransitionProvider initialTheme={colorMode}>
+```
+
+## iOS 26 Liquid Glass Containers Freeze Mid-Transition
+
+**Symptom.** An `expo-glass-effect` `GlassView` (or
+`@callstack/liquid-glass`, or any iOS 26 liquid glass container)
+used as app-level content stays frozen during the animation and
+snaps to its new appearance at the end. On `light → dark` the
+card looks whitish for the whole fade, then jumps.
+
+**Cause.** Skia's `makeImageFromView` captures through UIKit's
+`drawViewHierarchyInRect:afterScreenUpdates:YES`, which bakes
+the current `UIVisualEffectView` state into the bitmap. Liquid
+glass needs that view alive to do real-time lensing, specular
+highlights, and ambient refraction. Once those effects are
+frozen into a texture, they can't keep running. It's not a bug
+inside the snapshot path, it's how iOS 26 composites glass.
+
+**What still works.**
+
+- **Native tab bars, native-stack headers (including iOS 26's
+  liquid-glass headers), and system sheet backdrops.** The OS
+  composites these outside the snapshot path, so they animate
+  correctly.
+- **`BlurView` from `expo-blur`.** The classic `UIBlurEffect`
+  does no lensing or highlights, so frozen pixels look right the
+  whole way through.
+
+**Fix.** For app-level glass (hero cards, large glass panels in
+the middle of the viewport), use `BlurView`, use the system
+glass on tab bars and nav headers, or paint the surface with a
+solid theme token. Reserve `GlassView` for places that don't
+need to animate through a theme change.
+
+Proper support would mean mounting live `GlassView`s above the
+Skia overlay during the animation (a "transient re-hosted glass
+layer"). Possible in theory, hard in practice. The biggest
+blocker is that Reanimated's `measure()` on Fabric doesn't
+return `borderRadius` or transforms, so the transient copy can't
+match the original without extra registration boilerplate. Modal
+`UIWindow`s and GPU cost on dense glass layouts make it worse.
+Progress in the
+[issue tracker](https://github.com/marioprieta/react-native-theme-transition/issues).
+
+## Duplicate Plugin / Preset Detected
+
+From Expo SDK 55+, `babel-preset-expo` already includes
+`react-native-reanimated/plugin`. Remove it from your plugins list:
+
+```js title="babel.config.js"
+plugins: [
+  'react-native-worklets/plugin', // must be last
+]
+```
+
+## Error Messages Reference
+
+| Error | Cause |
+|---|---|
+| `themes must contain at least one theme` | Empty `themes` object. |
+| `"system" is a reserved name` | A theme is named `'system'`. Rename it. |
+| `different token keys` | Theme keys don't match across themes. |
+| `transition must be one of: ...` | `config.transition` is not a recognized transition kind. |
+| `systemThemeMap must provide both light and dark keys` | One of the keys is missing from `systemThemeMap`. |
+| `systemThemeMap refers to "X" which does not exist` | Typo in `systemThemeMap` values. |
+| `darkThemes refers to "X" which does not exist` | Typo in `darkThemes` entries. |
+| `darkThemes cannot be an empty array` | `darkThemes: []` was supplied. Omit the field to use the default. |
+| `initialTheme resolved to non-existent theme` | `'system'` mode with custom theme names but no `systemThemeMap`. |
+| `useTheme must be used inside a ThemeTransitionProvider` | Hook called outside the provider tree. |
+| `` `duration` must be a non-negative finite number `` | `setTheme` called with a negative, `NaN`, or `Infinity` `duration`. |
+| `` `blockSize` must be a finite number >= 2 `` | `setTheme` called with `transition: 'pixelize'` and an out-of-range `blockSize`. |
+| `` `noiseSize` must be a finite number >= 1 `` | `setTheme` called with `transition: 'dissolve'` and an out-of-range `noiseSize`. |
+| `` `origin` coordinates must be finite numbers `` | `setTheme` called with an explicit `origin` point whose `x` or `y` is `NaN` or `Infinity`. |
+
+## See Also
+
+- [How transitions work](../guides/how-it-works.md). The capture, swap, animate model.
+- [Callbacks](../guides/callbacks.md). When each callback fires.
+- [createThemeTransition](../api/create-theme-transition.md#validation-errors). The full validation error catalog.

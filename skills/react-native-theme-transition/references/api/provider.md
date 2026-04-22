@@ -1,0 +1,57 @@
+# ThemeTransitionProvider
+
+Wraps your app tree and provides the theme context. Place as high as possible
+in the component tree: above navigation, above modals. The screenshot captures
+everything inside the provider's root `View`.
+
+```tsx
+<ThemeTransitionProvider initialTheme="system">
+  <App />
+</ThemeTransitionProvider>
+```
+
+## Props
+
+| Prop | Type | Required | Description |
+|---|---|---|---|
+| `children` | `ReactNode` | yes | Your application tree |
+| `initialTheme` | `ThemeName \| 'system'` | yes | Theme for the first frame |
+
+## Initial theme behavior
+
+- Read once when the provider first mounts. If a parent re-renders and passes a different `initialTheme`, the provider ignores it. To change themes after mount, call `setTheme()`
+- `'system'` reads OS appearance synchronously (zero flash) and subscribes to changes
+- With custom names: requires `systemThemeMap` in config, otherwise throws
+- An explicit theme name (e.g. `'dark'`) does not subscribe to OS changes
+
+## Placement
+
+Content outside the provider won't be included in the transition screenshot.
+
+```tsx
+// Correct: navigation inside provider
+<ThemeTransitionProvider initialTheme="system">
+  <NavigationContainer>
+    ...
+  </NavigationContainer>
+</ThemeTransitionProvider>
+```
+
+```tsx
+// Wrong: provider inside navigation, only captures current screen
+<NavigationContainer>
+  <ThemeTransitionProvider initialTheme="system">
+    ...
+  </ThemeTransitionProvider>
+</NavigationContainer>
+```
+
+> **Warning.** Bottom sheets (e.g. `@gorhom/bottom-sheet`) must be inside the provider so
+> their backdrop is captured in the screenshot. React Native's built-in `Modal`
+> renders in a separate native window and won't be captured.
+
+## See Also
+
+- [createThemeTransition](../api/create-theme-transition.md). Factory that produces this provider.
+- [useTheme](../api/use-theme.md). Hook for reading the current theme inside the tree.
+- [Quick Start](../quick-start.md). Minimal setup walkthrough.

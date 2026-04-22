@@ -1,0 +1,370 @@
+# Migration Guide
+
+This guide covers two paths: upgrading from 1.x to 2.0, and migrating
+to the library from another theming setup. Both end in the same
+place: a single `theme.ts` file that owns your themes and exports a
+typed `useTheme` hook.
+
+## Upgrading From 1.x to 2.0
+
+2.0 reshapes the public API around a smaller, cleaner surface:
+`useTheme` returns a nested `theme` object plus a separate
+`preference` field, `setTheme` returns a discriminated string, and a
+handful of option fields were renamed. Old call sites will fail to
+typecheck. Most fixes are mechanical.
+
+### Peer Dependencies
+
+2.0 swaps the capture engine from `react-native-view-shot` to
+`@shopify/react-native-skia`, which raises the minimum versions for
+the whole stack. Before upgrading, make sure your app meets these
+peer dependency minimums:
+
+| Peer | 1.x minimum | 2.0 minimum |
+|---|---|---|
+| `react` | `>=18.0.0` | `>=19.0.0` |
+| `react-native` | `>=0.76.0` | `>=0.78.0` |
+| `react-native-reanimated` | `>=4.0.0` | `>=4.0.0` |
+| `react-native-worklets` | `>=0.5.0` | `>=0.5.0` |
+| `react-native-view-shot` | `>=3.0.0` | **removed** |
+| `@shopify/react-native-skia` | **new** | `>=2.0.0` |
+
+React 19 and React Native 0.78 are hard requirements: 2.0 uses
+React 19's `use()` hook to read context, and `@shopify/react-native-skia`
+2.0 itself declares `react: ">=19.0"` and `react-native: ">=0.78"` as
+peer dependencies.
+
+Uninstall `react-native-view-shot` and install
+`@shopify/react-native-skia`. Skia and Reanimated 4 ship with modern
+Expo SDKs, so 2.0 still works in Expo Go without a prebuild. Bare
+React Native CLI projects need a regular pod install / Gradle sync.
+See [Installation](../getting-started.md).
+
+### Remove The `useReducedMotion` Import
+
+The library no longer exports `useReducedMotion`. Delete any
+`import { useReducedMotion } from 'react-native-theme-transition'`
+lines. See [Reduced Motion](#reduced-motion) below for the
+replacement pattern.
+
+### `useTheme` Return Shape
+
+The hook now returns four top-level fields:
+
+- `theme`. What's painted right now (`name`, `colors`, `scheme`). Always concrete.
+- `preference`. What the user picked. Can be `'system'`.
+- `setTheme`. Change the preference.
+- `isTransitioning`. `true` while the overlay animation runs.
+
+```tsx
+// 1.x
+const { colors, name, setTheme, isTransitioning } = useTheme()
+<View style={{ backgroundColor: colors.background }} />
+
+// 2.0
+const { theme, preference, setTheme, isTransitioning } = useTheme()
+<View style={{ backgroundColor: theme.colors.background }} />
+
+// `theme.name` is always concrete, never 'system'.
+// Use `preference` to detect system mode.
+if (preference === 'system') {
+  // user is following the OS
+}
+```
+
+`theme.colors` is always the resolved colors currently painted on
+screen, even when the user is in system mode. The library resolves
+`'system'` to a concrete theme internally. See
+[useTheme](../api/use-theme.md#theme-vs-preference) for the full
+decision table.
+
+### `setTheme` Return Type
+
+```tsx
+// 1.x: boolean
+const accepted: boolean = setTheme('dark')
+
+// 2.0: discriminated string
+const result: 'accepted' | 'ignored' = setTheme('dark')
+```
+
+`'ignored'` means the library did nothing (already transitioning, or
+the target matches the current preference). Most callers can discard
+the return value.
+
+### `select()` Is Gone, Use `preference`
+
+`useTheme({ initialSelection })`, `selected`, and `select()` are all
+removed. The hook now exposes a top-level `preference` field that
+mirrors the user's raw pick (it updates synchronously inside
+`setTheme`), so pickers can drop their optimistic local state
+entirely.
+
+```tsx
+// 1.x
+function ThemePicker() {
+  const { selected, select, isTransitioning } = useTheme({
+initialSelection: 'system',
+  })
+  return (['light', 'dark', 'system'] as const).map((option) => (
+<Pressable key={option} disabled={isTransitioning} onPress={() => select(option)}>
+  <Text style={{ opacity: selected === option ? 1 : 0.5 }}>{option}</Text>
+</Pressable>
+  ))
+}
+
+// 2.0
+function ThemePicker() {
+  const { preference, setTheme, isTransitioning } = useTheme()
+  return (['light', 'dark', 'system'] as const).map((option) => (
+<Pressable key={option} disabled={isTransitioning} onPress={() => setTheme(option)}>
+  <Text style={{ opacity: preference === option ? 1 : 0.5 }}>{option}</Text>
+</Pressable>
+  ))
+}
+```
+
+`preference` stays in sync automatically when anything else changes
+the theme: OS appearance, persistence bridge, or a programmatic call
+from another component. No `useEffect` needed.
+
+### Reduced Motion
+
+`useReducedMotion()` is no longer exported, and `config.reduceMotion`
+is gone. If you want to honor the OS setting, subscribe yourself and
+pass `animated: false` per call:
+
+```tsx
+import { useEffect, useState } from 'react'
+import { AccessibilityInfo } from 'react-native'
+
+// Named differently from the removed v1 export so a half-finished
+// migration doesn't silently shadow a stale `useReducedMotion` import.
+function usePrefersReducedMotion() {
+  const [rm, setRm] = useState(false)
+  useEffect(() => {
+AccessibilityInfo.isReduceMotionEnabled().then(setRm)
+const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRm)
+return () => sub.remove()
+  }, [])
+  return rm
+}
+
+const reducedMotion = usePrefersReducedMotion()
+setTheme('dark', { animated: !reducedMotion })
+```
+
+### `config.duration` Is Gone
+
+Duration is per-call only. Each transition family has its own
+calibrated default; setting one global value would flatten the
+calibration.
+
+```tsx
+// 1.x
+createThemeTransition({ themes, duration: 500 })
+
+// 2.0
+setTheme('dark', { duration: 500 })
+```
+
+### `config.backgroundColor` Is Gone
+
+The library no longer paints a root background behind the inner
+tree. Set `backgroundColor` on your own root `View` as with any
+standard React Native app. If you were using the v1 callback, just
+delete it and apply the color to your root View style:
+
+```tsx
+// 1.x
+createThemeTransition({
+  themes: { light: { bg: '#fff' }, dark: { bg: '#111' } },
+  backgroundColor: (colors) => colors.bg,
+})
+
+// 2.0: delete the callback, style your root View directly
+<View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+  <App />
+</View>
+```
+
+### Renamed Option Fields
+
+| 1.x | 2.0 |
+|---|---|
+| `{ transition: 'split', axis: 'horizontal' }` | `{ transition: 'split', mode: 'top-bottom' }` |
+| `{ transition: 'split', axis: 'vertical' }` | `{ transition: 'split', mode: 'left-right' }` |
+| `{ transition: 'dissolve', grainSize: 5 }` | `{ transition: 'dissolve', noiseSize: 5 }` |
+| `{ transition: 'invertedCircularReveal' }` | `{ transition: 'circularReveal', inverted: true }` |
+
+The old `'diamond'` transition has been removed.
+
+### Direction Semantics (`wipe` and `slide`)
+
+`direction` names where the motion is heading. `direction: 'right'`
+means the new theme enters from the LEFT edge and sweeps rightward.
+This matches the v1 behavior; no call-site changes are needed, just a
+clearer mental model.
+
+## From Another Theme System
+
+### Step 1
+**Install** the library and its peer dependencies. See [Getting Started](../getting-started.md).
+
+### Step 2
+**Create the theme file** that defines your tokens and calls `createThemeTransition`.
+
+### Step 3
+**Wrap with the provider** at the root of your app.
+
+### Step 4
+**Replace** color references with `useTheme().theme.colors`.
+
+### Step 5
+**Remove** the old theme context/provider.
+
+## From Plain Context / `useState`
+
+### Before
+
+```tsx
+const ThemeContext = createContext({
+  theme: 'light',
+  colors: lightColors,
+  toggle: () => {},
+})
+
+function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState('light')
+  const colors = theme === 'light' ? lightColors : darkColors
+  return (
+<ThemeContext.Provider
+  value={{
+        theme,
+        colors,
+        toggle: () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
+  }}
+>
+  {children}
+</ThemeContext.Provider>
+  )
+}
+```
+
+### After
+
+```ts title="lib/theme.ts"
+import { createThemeTransition } from 'react-native-theme-transition'
+
+export const { ThemeTransitionProvider, useTheme } = createThemeTransition({
+  themes: { light: lightColors, dark: darkColors },
+})
+```
+
+```tsx
+// Before
+const { colors, toggle } = useContext(ThemeContext)
+
+// After
+const { theme, setTheme } = useTheme()
+const toggle = () => setTheme(theme.name === 'light' ? 'dark' : 'light')
+```
+
+## From React Navigation Theming Only
+
+```ts title="lib/theme.ts"
+const light = {
+  primary: '#007AFF', background: '#ffffff', card: '#ffffff',
+  text: '#000000', border: '#d8d8d8', notification: '#ff3b30',
+}
+
+const dark: Record<keyof typeof light, string> = {
+  primary: '#0A84FF', background: '#000000', card: '#1c1c1e',
+  text: '#ffffff', border: '#333333', notification: '#ff453a',
+}
+
+export const { ThemeTransitionProvider, useTheme } = createThemeTransition({
+  themes: { light, dark },
+})
+```
+
+Bridge to `NavigationContainer` so React Navigation gets your theme:
+
+```tsx
+import { useMemo } from 'react'
+import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native'
+import { useTheme } from '@/lib/theme'
+
+function AppWithNavigation() {
+  const { theme } = useTheme()
+
+  const navTheme: Theme = useMemo(
+() => ({
+  dark: theme.scheme === 'dark',
+  colors: {
+        primary: theme.colors.primary,
+        background: theme.colors.background,
+        card: theme.colors.card,
+        text: theme.colors.text,
+        border: theme.colors.border,
+        notification: theme.colors.notification,
+  },
+  fonts: DefaultTheme.fonts,
+}),
+[theme],
+  )
+
+  return (
+<NavigationContainer theme={navTheme}>
+  <AppNavigator />
+</NavigationContainer>
+  )
+}
+
+<ThemeTransitionProvider initialTheme="system">
+  <AppWithNavigation />
+</ThemeTransitionProvider>
+```
+
+See [Expo Router](../recipes/expo-router.md) for the same pattern
+applied to expo-router's `Stack`.
+
+## Preserving an Existing `useTheme` Hook
+
+If your codebase already exposes a `useTheme` with a different shape,
+wrap the library's hook to keep your call sites unchanged:
+
+```ts title="lib/theme.ts"
+const api = createThemeTransition({ themes: { light, dark } })
+
+export const ThemeTransitionProvider = api.ThemeTransitionProvider
+
+export function useTheme() {
+  const { theme, setTheme, isTransitioning } = api.useTheme()
+  return {
+colors: theme.colors,
+theme: theme.name,
+isDark: theme.scheme === 'dark',
+toggle: () => setTheme(theme.name === 'light' ? 'dark' : 'light'),
+setTheme,
+isTransitioning,
+  }
+}
+```
+
+## Migration Checklist
+
+- [ ] Install the library and peer dependencies.
+- [ ] Create the theme file with matching token keys.
+- [ ] Wrap the root with `ThemeTransitionProvider`.
+- [ ] Replace color references with `useTheme().theme.colors`.
+- [ ] Replace toggle logic with `setTheme()`.
+- [ ] Remove the old context/provider.
+- [ ] Test: light↔dark, system mode, rapid taps, background/foreground.
+
+## See Also
+
+- [Quick start](../quick-start.md). The three-step setup.
+- [useTheme](../api/use-theme.md). The hook and `setTheme` reference.
+- [Expo Router](../recipes/expo-router.md). Canonical navigation integration.
+- [Persistence](../recipes/persistence.md). Save the user's preference across launches.

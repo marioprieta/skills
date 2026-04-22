@@ -1,0 +1,81 @@
+# Checkmark List
+
+The classic iOS Settings look: a card with three rows, a checkmark
+on the active one. The checkmark reads `preference` so the `'system'`
+row highlights when the user picks it.
+
+## Example
+
+```tsx
+import { Pressable, Text, View } from 'react-native'
+import { useTheme } from '@/lib/theme'
+
+const OPTIONS = ['system', 'light', 'dark'] as const
+const LABELS = { system: 'System', light: 'Light', dark: 'Dark' }
+
+export function ThemeList() {
+  const { theme, preference, setTheme, isTransitioning } = useTheme()
+
+  return (
+    <View
+      style={{
+        backgroundColor: theme.colors.card,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        overflow: 'hidden',
+      }}
+    >
+      {OPTIONS.map((option, i) => (
+        <Pressable
+          key={option}
+          disabled={isTransitioning}
+          onPress={() => setTheme(option)}
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingVertical: 13,
+            paddingHorizontal: 16,
+            borderBottomWidth: i < OPTIONS.length - 1 ? 1 : 0,
+            borderBottomColor: theme.colors.border,
+          }}
+        >
+          <Text style={{ fontSize: 16, color: theme.colors.text }}>
+            {LABELS[option]}
+          </Text>
+          {option === preference && (
+            <Text
+              style={{
+                fontSize: 17,
+                color: theme.colors.primary,
+                fontWeight: '600',
+              }}
+            >
+              ✓
+            </Text>
+          )}
+        </Pressable>
+      ))}
+    </View>
+  )
+}
+```
+
+## Why `preference` and Not `theme.name`
+
+The checkmark reflects the user's choice, not the rendered theme. If
+the user picks `'system'`, `theme.name` resolves to a concrete theme
+like `'light'` or `'dark'`, and the `'system'` row would never get a
+checkmark.
+
+`preference` is the raw value the user picked and updates
+synchronously inside `setTheme`, so the checkmark moves in the same
+commit as the tap. The engine waits one frame before capturing,
+giving React time to paint the new position.
+
+## See Also
+
+- [Theme Picker](../examples/theme-picker.md). Segmented control variant.
+- [Persisted Preference](../recipes/persistence.md). Save the choice across launches.
+- [useTheme](../api/use-theme.md). The hook reference.

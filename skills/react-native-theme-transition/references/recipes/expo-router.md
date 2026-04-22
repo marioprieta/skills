@@ -1,0 +1,140 @@
+# Expo Router
+
+The canonical setup uses three providers nested in the right order:
+`ThemeTransitionProvider` (this library, captures the screen for
+transitions), `ThemeProvider` from `@react-navigation/native`
+(propagates your theme to React Navigation's native UI), and Expo
+Router's `Stack`. Drop the snippet below into `app/_layout.tsx` and
+adjust the `@/lib/theme` import to match your project structure
+(e.g. `./lib/theme` or `../theme` if you don't use path aliases).
+
+```tsx title="app/_layout.tsx"
+import { useMemo } from 'react'
+import { ThemeTransitionProvider, useTheme } from '@/lib/theme'
+import { DefaultTheme, ThemeProvider, type Theme } from '@react-navigation/native'
+import { Stack } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+
+const screenOptions = { headerShown: false } as const
+
+function InnerLayout() {
+  const { theme } = useTheme()
+
+  const navTheme: Theme = useMemo(
+    () => ({
+      dark: theme.scheme === 'dark',
+      colors: {
+        primary: theme.colors.primary,
+        background: theme.colors.background,
+        card: theme.colors.card,
+        text: theme.colors.text,
+        border: theme.colors.border,
+        notification: theme.colors.notification,
+      },
+      fonts: DefaultTheme.fonts,
+    }),
+    [theme],
+  )
+
+  return (
+    <ThemeProvider value={navTheme}>
+      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+      <Stack screenOptions={screenOptions}>
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </ThemeProvider>
+  )
+}
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeTransitionProvider initialTheme="system">
+        <InnerLayout />
+      </ThemeTransitionProvider>
+    </GestureHandlerRootView>
+  )
+}
+```
+
+## How It Works
+
+Three pieces, each with one job.
+
+### 1. `ThemeTransitionProvider`: Captures the Screen for Transitions
+
+Wraps everything that should appear in the snapshot. It's at the
+**top** of the tree (inside `GestureHandlerRootView`) so the capture
+includes navigation, headers, tabs, and content. Anything rendered
+outside this provider won't appear in the overlay and may flash
+during the transition.
+
+### 2. `ThemeProvider` From `@react-navigation/native`: Propagates the Theme to Native UI
+
+Without it, every native UI element managed by React Navigation falls
+back to the OS system colors. With it, your theme propagates to:
+
+- **Screen container background.** Paints the iOS safe-area zones (top
+  status bar area, bottom home indicator area) with your theme color.
+  Native-stack reads `navTheme.colors.background` from this provider
+  and applies it as `contentStyle.backgroundColor` on every `Screen`
+  automatically. Without `ThemeProvider`, `react-native-screens` uses
+  the system default and the insets stay light/dark independent of
+  your theme.
+- **Native-stack header** background, tint, and title color.
+- **Tab bar** background and active/inactive colors.
+- **React Navigation's own `useTheme()` hook.** Used by `<Link>` and
+  any third-party component that integrates with React Navigation's
+  theme.
+
+`navTheme` is wrapped in `useMemo` keyed on `theme` so React
+Navigation doesn't tear down its native containers on every parent
+re-render, only when the underlying theme actually changes.
+
+### 3. `StatusBar`: Follows `theme.scheme`
+
+`theme.scheme` is always `'light'` or `'dark'`, regardless of how
+many themes you've defined or whether the user is in system mode.
+That's the right signal for the status bar content (`light` content
+on a dark background, `dark` content on a light background).
+
+## Nesting Order
+
+```
+GestureHandlerRootView                ← gesture handler root (RN convention)
+  └─ ThemeTransitionProvider          ← captures everything below for snapshots
+      └─ ThemeProvider                ← propagates theme to React Navigation native UI
+          └─ Stack / Tabs             ← your navigation
+              └─ Screens              ← inherit theme via React Navigation
+```
+
+The order matters: `ThemeTransitionProvider` must be **above**
+`ThemeProvider`, because the `useTheme()` call inside `InnerLayout`
+is how `navTheme` gets the active colors, and that hook lives on
+the library's context.
+
+## Bottom Sheets and Modals
+
+Bottom sheets must be inside the provider so the snapshot captures
+their backdrop too:
+
+```tsx
+<ThemeTransitionProvider initialTheme="system">
+  <BottomSheetModalProvider>
+    <App />
+  </BottomSheetModalProvider>
+</ThemeTransitionProvider>
+```
+
+> **Warning.** React Native's built-in `Modal` renders in a separate native window
+> and is **not** captured in the snapshot. Theme changes while a modal
+> is open will animate only the background tree; the modal contents
+> flip instantly. Use a bottom sheet (or any in-tree overlay) instead
+> if you need the full transition.
+
+## See Also
+
+- [React Navigation example](../examples/react-navigation.md). Same pattern for `NavigationContainer`.
+- [useTheme](../api/use-theme.md). The hook reference.
+- [Troubleshooting](../guides/troubleshooting.md). iOS safe-area background fix.

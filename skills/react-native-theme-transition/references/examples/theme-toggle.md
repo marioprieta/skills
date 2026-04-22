@@ -1,0 +1,99 @@
+# Theme Toggle
+
+A custom toggle that replaces the native `<Switch>`. The thumb
+position reads `theme.scheme` (the binary `'light' | 'dark'` flag
+the library exposes), so derived state paints in the same commit as
+the tap, and the engine's 1-frame settle before capture lets that
+paint land before the snapshot.
+
+> **Warning.** Don't use the native React Native `<Switch>` for theme toggling.
+> iOS `UISwitch` runs a ~250 ms Core Animation with no completion
+> callback, so the snapshot catches the thumb mid-slide and the
+> result flickers. Build your own toggle with plain styles.
+
+## Example
+
+```tsx
+import { Pressable, Text, View } from 'react-native'
+import { useTheme } from '@/lib/theme'
+
+const TRACK_W = 50
+const TRACK_H = 30
+const THUMB = 26
+const PAD = 2
+const MAX_TX = TRACK_W - THUMB - PAD * 2
+
+export function ThemeToggle() {
+  const { theme, setTheme, isTransitioning } = useTheme()
+  const isDark = theme.scheme === 'dark'
+
+  return (
+    <Pressable
+      disabled={isTransitioning}
+      onPress={() => setTheme(isDark ? 'light' : 'dark')}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        backgroundColor: theme.colors.card,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      }}
+    >
+      <Text style={{ fontSize: 16, color: theme.colors.text }}>Dark Mode</Text>
+      <View
+        style={{
+          width: TRACK_W,
+          height: TRACK_H,
+          borderRadius: TRACK_H / 2,
+          padding: PAD,
+          justifyContent: 'center',
+          backgroundColor: isDark ? theme.colors.primary : theme.colors.border,
+        }}
+      >
+        <View
+          style={{
+            width: THUMB,
+            height: THUMB,
+            borderRadius: THUMB / 2,
+            backgroundColor: '#fff',
+            elevation: 2,
+            shadowColor: '#000',
+            shadowOpacity: 0.2,
+            shadowOffset: { width: 0, height: 1 },
+            shadowRadius: 2,
+            transform: [{ translateX: isDark ? MAX_TX : 0 }],
+          }}
+        />
+      </View>
+    </Pressable>
+  )
+}
+```
+
+## Why `theme.scheme` Instead of `theme.name`
+
+For a binary dark/light toggle, `theme.scheme` is the right signal:
+it's always `'light'` or `'dark'`, even when you have three or four
+themes defined. `theme.name` works too if you only have `light` and
+`dark`, but the moment you add an `ocean` or `rose`, toggling
+against `theme.name === 'dark'` stops making sense.
+
+## Why Plain Styles, Not Reanimated
+
+Reanimated's `useAnimatedStyle` + `useEffect` → `sharedValue` adds at
+least one frame of latency (JS → UI thread). The snapshot can fire
+before the native view catches up, and the toggle thumb ends up
+mid-slide in the captured image. Plain styles update inside React's
+commit, so the snapshot catches the final position. Same pattern
+applies to the [Theme Picker](../examples/theme-picker.md) and the
+[Checkmark List](../examples/checkmark-list.md).
+
+## See Also
+
+- [Theme Picker](../examples/theme-picker.md). Segmented control built around `preference`.
+- [Theme Button](../examples/theme-button.md). Minimal cycle-button without state.
+- [useTheme](../api/use-theme.md). The hook reference.

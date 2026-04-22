@@ -1,0 +1,113 @@
+# Theme Picker
+
+A segmented control where the active option is highlighted. The
+highlight reads `preference` (not `theme.name`) so the `'system'`
+row can win when the user is following the OS. Because `preference`
+updates synchronously inside `setTheme`, there's no need for local
+`picked` state. The highlight repaints in the same commit as the
+tap.
+
+## Example
+
+```tsx
+import { Pressable, Text, View } from 'react-native'
+import { useTheme } from '@/lib/theme'
+
+const OPTIONS = ['system', 'light', 'dark'] as const
+
+export function ThemePicker() {
+  const { theme, preference, setTheme, isTransitioning } = useTheme()
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {OPTIONS.map((option) => (
+        <Pressable
+          key={option}
+          disabled={isTransitioning}
+          onPress={() => setTheme(option)}
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: 8,
+            alignItems: 'center',
+            backgroundColor:
+              preference === option ? theme.colors.primary : 'transparent',
+          }}
+        >
+          <Text
+            style={{ color: preference === option ? '#fff' : theme.colors.text }}
+          >
+            {option}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  )
+}
+```
+
+## Why `preference` and Not `theme.name`
+
+`theme.name` is always the concrete painted theme, never `'system'`.
+If you drive the highlight from it, the `'system'` row can never be
+selected: the library always resolves `'system'` to a real theme like
+`'light'` or `'dark'`, and that's what `theme.name` would carry.
+
+`preference` mirrors the raw value the user passed to `setTheme` (or
+the initial `initialTheme` prop). It updates synchronously when
+`setTheme` runs, so the highlight repaints in the same commit. The
+engine waits one frame before capturing, giving React time to paint
+the new selection.
+
+## With Persistence
+
+Call `setTheme` and your store setter together in `onPress`. Don't
+route through a reactive bridge; it'll race with the settle window.
+
+```tsx
+import { useThemeStore } from '@/stores/theme-store'
+
+export function ThemePicker() {
+  const { theme, preference, setTheme, isTransitioning } = useTheme()
+  const setColorMode = useThemeStore((s) => s.setColorMode)
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {OPTIONS.map((option) => (
+        <Pressable
+          key={option}
+          disabled={isTransitioning}
+          onPress={() => {
+            setTheme(option)
+            setColorMode(option)
+          }}
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: 8,
+            alignItems: 'center',
+            backgroundColor:
+              preference === option ? theme.colors.primary : 'transparent',
+          }}
+        >
+          <Text
+            style={{ color: preference === option ? '#fff' : theme.colors.text }}
+          >
+            {option}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  )
+}
+```
+
+See [State Managers](../recipes/zustand.md) for the hydration pattern
+and [Persisted Preference](../recipes/persistence.md) for the
+AsyncStorage-only version.
+
+## See Also
+
+- [Checkmark List](../examples/checkmark-list.md). iOS Settings-style list using the same pattern.
+- [Theme Toggle](../examples/theme-toggle.md). Binary dark/light switch.
+- [useTheme](../api/use-theme.md). The hook reference.

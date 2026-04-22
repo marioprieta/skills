@@ -1,0 +1,270 @@
+# createThemeTransition
+
+`createThemeTransition` validates your configuration at
+initialization and returns a provider to wrap your app and a
+`useTheme` hook to read and change the active theme. Both are typed
+against your theme map. Each call creates an isolated instance, so
+multiple theme scopes can coexist in the same app.
+
+TypeScript infers theme names and token keys from `config.themes`,
+so the returned `useTheme` and `setTheme` are fully typed against
+your themes with no manual generics.
+
+## Reference
+
+```ts
+import { createThemeTransition } from 'react-native-theme-transition'
+
+const { ThemeTransitionProvider, useTheme } = createThemeTransition({
+  themes: { light, dark },
+  transition: 'circularReveal',
+  onThemeChange: (name) => analytics.track('theme_switch', { theme: name }),
+})
+```
+
+## Arguments
+
+`createThemeTransition` takes a single `config` object.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `themes` | `Record<string, ThemeDefinition>` | *required* | All theme definitions keyed by name. Every theme must share the same token keys. `'system'` is reserved. |
+| `animated` | `boolean` | `true` | Global default for animated switches. When `false`, every `setTheme` call switches instantly unless the caller passes `{ animated: true }`. |
+| `transition` | `TransitionType` | `'fade'` | Default transition kind when `setTheme` is called without a `transition` option. |
+| `systemThemeMap` | `{ light: Names; dark: Names }` | — | Maps OS appearance to your theme names. Required when your themes are not literally named `'light'` and `'dark'` and you want to use `'system'` mode. |
+| `darkThemes` | `Names[]` | `[systemThemeMap.dark]` or `['dark']` | Theme names that register as a dark color scheme with the OS. The library calls `Appearance.setColorScheme` internally to keep native UI in sync. |
+| `onTransitionStart` | `(name) => void` | — | Called when an animated transition begins, before snapshot capture. Skipped for instant switches. |
+| `onTransitionEnd` | `(name) => void` | — | Called after an animated transition completes. Skipped for instant switches and capture-failure fallbacks. |
+| `onThemeChange` | `(name) => void` | — | Called on every theme change: animated, instant, or system-driven. The only callback guaranteed to fire. |
+
+> **Note.** `duration` is intentionally **not** a config field. Each transition
+> kind has its own per-kind default tuned for that family's feel. A
+> single global override would flatten that calibration. Pass
+> `duration` per call via `setTheme(name, { duration })` instead.
+
+## Returns
+
+| Field | Type | Description |
+|---|---|---|
+| `ThemeTransitionProvider` | `Component` | React provider that supplies animated theme colors via context. See [ThemeTransitionProvider](../api/provider.md) for placement rules and nesting examples. |
+| `useTheme` | `() => UseThemeResult` | Hook that returns the painted theme, the user's preference, the mutator, and the transition flag. See [useTheme](../api/use-theme.md). |
+
+## Example
+
+```ts title="lib/theme.ts"
+import { createThemeTransition } from 'react-native-theme-transition'
+
+const light = {
+  background: '#ffffff',
+  card:       '#f5f5f5',
+  text:       '#000000',
+  primary:    '#007AFF',
+}
+
+const dark: Record<keyof typeof light, string> = {
+  background: '#000000',
+  card:       '#1c1c1e',
+  text:       '#ffffff',
+  primary:    '#0A84FF',
+}
+
+export const { ThemeTransitionProvider, useTheme } = createThemeTransition({
+  themes: { light, dark },
+  transition: 'circularReveal',
+})
+```
+
+```tsx title="app/_layout.tsx"
+import { ThemeTransitionProvider } from '@/lib/theme'
+
+export default function RootLayout() {
+  return (
+    <ThemeTransitionProvider initialTheme="system">
+      <App />
+    </ThemeTransitionProvider>
+  )
+}
+```
+
+## Common Configurations
+
+Four patterns cover almost every real app. Find the one closest to
+your case and copy it as a starting point.
+
+### Minimal
+
+The smallest legal config. Two themes, default fade transition, no
+system mode integration. Great for prototyping.
+
+```ts
+createThemeTransition({
+  themes: { light, dark },
+})
+```
+
+You get: 350 ms fade, `theme.scheme` derived from `dark` being a
+dark theme, OS native UI follows the active theme via
+`Appearance.setColorScheme`. `setTheme('system')` works because the
+themes are literally named `'light'` and `'dark'`.
+
+### Standard
+
+What the [Quick Start](../quick-start.md) shows. Adds an explicit
+default transition.
+
+```ts
+createThemeTransition({
+  themes: { light, dark },
+  transition: 'circularReveal',
+})
+```
+
+Same as Minimal, plus every `setTheme` call animates with a circular
+reveal unless the caller overrides `transition` per call.
+
+### Custom Theme Names
+
+When your themes are not named `'light'` and `'dark'`, the library
+cannot infer which one to use for system mode on its own. Provide
+`systemThemeMap` to tell it.
+
+```ts
+createThemeTransition({
+  themes: { sunrise, midnight },
+  systemThemeMap: { light: 'sunrise', dark: 'midnight' },
+})
+```
+
+`darkThemes` defaults to `[systemThemeMap.dark]` (`['midnight']`
+here), so `theme.scheme === 'dark'` reports `true` only when
+`midnight` is active. Without `systemThemeMap`, `setTheme('system')`
+and `initialTheme="system"` both throw at the first resolve.
+
+### Multiple Dark Themes
+
+When two or more of your themes should register as dark with the OS
+(for example, a regular dark theme plus an OLED-optimized one),
+list them explicitly in `darkThemes`.
+
+```ts
+createThemeTransition({
+  themes: { light, dark, midnight, ocean },
+  systemThemeMap: { light: 'light', dark: 'dark' },
+  darkThemes: ['dark', 'midnight', 'ocean'],
+  onThemeChange: (name) => analytics.track('theme_switch', { theme: name }),
+})
+```
+
+`theme.scheme === 'dark'` now reports `true` for any of `dark`,
+`midnight`, or `ocean`. `Appearance.setColorScheme('dark')` fires
+when any of them are active, so iOS alerts and the system keyboard
+stay in dark. `systemThemeMap.dark` still picks the canonical dark
+theme (`'dark'`) when the OS is dark and the user is in system mode.
+
+## Theme Definitions
+
+Every theme must share the exact same set of token keys. Mismatches
+throw at initialization. The order of keys within a theme does not
+matter.
+
+```ts
+const light = { bg: '#fff', text: '#000', primary: '#007AFF' }
+
+// Type-safe enforcement of matching keys on secondary themes:
+const dark: Record<keyof typeof light, string> = {
+  bg: '#000', text: '#fff', primary: '#0A84FF',
+}
+```
+
+### Rules
+
+- At least one theme is required.
+- `'system'` is reserved. It cannot be used as a theme key.
+- All themes must share an identical key set.
+
+## `systemThemeMap`
+
+Maps the OS color scheme to your theme names. Required when your
+themes are not literally named `'light'` and `'dark'` and you want
+to use `'system'` mode (either via `initialTheme="system"` or
+`setTheme('system')`).
+
+```ts
+createThemeTransition({
+  themes: { sunrise, midnight, ocean },
+  systemThemeMap: { light: 'sunrise', dark: 'midnight' },
+})
+```
+
+Both `light` and `dark` must be provided, and both values must
+reference existing theme names.
+
+## `darkThemes`
+
+The library calls `Appearance.setColorScheme` so native UI elements
+(alerts, date pickers, keyboards) match the active theme.
+`darkThemes` tells it which of your themes register as a dark color
+scheme.
+
+```ts
+createThemeTransition({
+  themes: { light, dark, ocean, rose },
+  darkThemes: ['dark', 'ocean'],
+  systemThemeMap: { light: 'light', dark: 'dark' },
+})
+```
+
+Defaults to `[systemThemeMap.dark]` when `systemThemeMap` is
+provided, otherwise `['dark']`. In system mode the library uses
+`Appearance.setColorScheme('unspecified')` so the OS drives native
+appearance.
+
+`darkThemes` must contain at least one entry when supplied. Passing
+an empty array throws at initialization to prevent a silent
+misconfiguration where every theme would register as light with the
+OS and break native UI elements (alerts, date pickers, status bar
+contrast). Omit the field instead to fall back to the default.
+
+> **Warning.** Do not call `Appearance.setColorScheme` yourself. The library
+> tracks system mode through that call. Manual writes desync it on
+> Android, and the next `setTheme('system')` will misbehave.
+
+## Reduced Motion
+
+The library does not honor OS Reduce Motion automatically. It is
+policy-free on accessibility. If you want to respect the system
+setting, read it yourself and pass `animated: false` per call.
+
+```ts
+import { AccessibilityInfo } from 'react-native'
+
+const reduced = await AccessibilityInfo.isReduceMotionEnabled()
+setTheme('dark', reduced ? { animated: false } : undefined)
+```
+
+## Validation Errors
+
+`createThemeTransition` throws at initialization when the config is
+invalid. The most common cases:
+
+| Error | Cause |
+|---|---|
+| `\`themes\` must contain at least one theme.` | `themes` is empty. |
+| `\`"system"\` is a reserved name…` | `themes` contains a key named `'system'`. |
+| `Theme "X" has different token keys than "Y".` | Theme `X` is missing or adding keys vs the reference theme. |
+| `\`transition\` must be one of: …` | `config.transition` is not a recognized transition kind. |
+| `\`systemThemeMap\` must provide both \`light\` and \`dark\` keys.` | One of the keys is missing. |
+| `\`systemThemeMap.X\` refers to "Y" which does not exist…` | The mapped name is not a theme key. |
+| `\`darkThemes\` refers to "X" which does not exist…` | An entry in `darkThemes` is not a theme key. |
+| `\`darkThemes\` cannot be an empty array.` | `darkThemes: []` was supplied. Omit the field instead to use the default. |
+
+`setTheme` validates its options at every call and throws on
+out-of-range numeric inputs. See
+[setTheme runtime errors](../api/use-theme.md#runtime-errors).
+
+## See Also
+
+- [useTheme](../api/use-theme.md). The hook returned by the factory.
+- [SetThemeOptions](../types.md#setthemeoptions). Every per-call option for `setTheme`.
+- [Quick start](../quick-start.md). The three-step setup.
+- [How transitions work](../guides/how-it-works.md). The capture, swap, animate model.

@@ -1,0 +1,83 @@
+# Callbacks
+
+The library exposes three callbacks. The split is intentional.
+`onTransitionStart` and `onTransitionEnd` are for animation
+lifecycle; `onThemeChange` is for "the theme is now X". Use
+`onThemeChange` as the single source of truth for persistence and
+analytics; it is the only one guaranteed to fire on every code path.
+
+## Animated Transition
+
+```text
+1. setTheme('dark') runs; touches are blocked
+2. config.onTransitionStart(name)      ← first
+3. options.onTransitionStart(name)     ← per-call, after config
+4. snapshot captured, overlay mounted
+5. colors swapped under the overlay
+6. animation runs (duration ms)
+7. animation ends (setTimeout matched to duration)
+8. config.onTransitionEnd(name)        ← first
+9. options.onTransitionEnd(name)       ← per-call, after config
+10. config.onThemeChange(name)         ← always last
+11. next render: isTransitioning → false
+```
+
+## Instant Switch
+
+```ts
+setTheme('dark', { animated: false })
+```
+
+```text
+1. colors swap immediately
+2. config.onThemeChange(name)
+```
+
+No start, no end, no touch blocking, no snapshot. Only
+`onThemeChange` fires.
+
+## System-Driven Change
+
+OS appearance changes go through the same paths as user-initiated
+calls.
+
+- **Foreground.** Full animated transition.
+- **Background or returning to foreground.** Instant switch.
+
+`onThemeChange` fires in both cases. `onTransitionStart` and
+`onTransitionEnd` only fire for the foreground (animated) path.
+
+## Capture Failure Fallback
+
+If the Skia snapshot fails (out of memory, unmounted view, GPU
+hiccup), the library falls back to an instant switch. But
+`onTransitionStart` has already fired by then.
+
+```text
+1. config.onTransitionStart(name)      ← already fired
+2. snapshot FAILS
+3. colors swap immediately
+4. config.onThemeChange(name)
+```
+
+> **Warning.** `onTransitionEnd` does **not** fire on capture failure. Write
+> your `onTransitionStart` handlers so they are safe to run without
+> a matching end. Release any haptic engine references, clear any
+> state, and rely on `onThemeChange` for "the change is committed"
+> side effects.
+
+## Summary
+
+| Callback | Animated | Instant | System foreground | System background | Capture failure |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `config.onTransitionStart` | ✅ | ❌ | ✅ | ❌ | ✅ (already fired) |
+| `options.onTransitionStart` | ✅ | ❌ | n/a | n/a | ✅ (already fired) |
+| `config.onTransitionEnd` | ✅ | ❌ | ✅ | ❌ | ❌ |
+| `options.onTransitionEnd` | ✅ | ❌ | n/a | n/a | ❌ |
+| `config.onThemeChange` | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+## See Also
+
+- [createThemeTransition](../api/create-theme-transition.md#arguments). Config-level callbacks.
+- [SetThemeOptions](../types.md#setthemeoptions). Per-call callbacks.
+- [How transitions work](../guides/how-it-works.md). The capture, swap, animate model.

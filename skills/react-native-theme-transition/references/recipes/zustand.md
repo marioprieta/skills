@@ -1,0 +1,198 @@
+# State Managers
+
+The library owns transition state. External stores handle
+**persistence**: where the user's pick (`'light' | 'dark' | 'system'`)
+lives across app restarts. The pattern is the same for every store:
+read the persisted value, pass it as `initialTheme`, and on press call
+`setTheme` and the store setter together in the same handler.
+
+## Zustand
+
+### Store
+
+```ts title="stores/theme-store.ts"
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
+export type ColorMode = 'system' | 'light' | 'dark'
+
+interface ThemeState {
+  colorMode: ColorMode
+  setColorMode: (mode: ColorMode) => void
+}
+
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set) => ({
+      colorMode: 'system',
+      setColorMode: (mode) => set({ colorMode: mode }),
+    }),
+    {
+      name: 'theme-store',
+      storage: createJSONStorage(() => AsyncStorage),
+    },
+  ),
+)
+```
+
+### Root Layout
+
+Wait for Zustand to hydrate before mounting the provider, then pass
+the persisted value as `initialTheme`. No bridge component is needed.
+
+```tsx title="app/_layout.tsx"
+import { useEffect, useState } from 'react'
+import { ThemeTransitionProvider } from '@/lib/theme'
+import { useThemeStore } from '@/stores/theme-store'
+
+export default function RootLayout() {
+  const [hydrated, setHydrated] = useState(useThemeStore.persist.hasHydrated())
+
+  useEffect(
+    () => useThemeStore.persist.onFinishHydration(() => setHydrated(true)),
+    [],
+  )
+
+  if (!hydrated) return null // or your splash component
+
+  // Snapshot read, not a subscription: `initialTheme` is read once on
+  // mount and ignored on re-render, so reactive reads add nothing.
+  const colorMode = useThemeStore.getState().colorMode
+
+  return (
+    <ThemeTransitionProvider initialTheme={colorMode}>
+      <App />
+    </ThemeTransitionProvider>
+  )
+}
+```
+
+> **Note.** `useThemeStore.getState()` is deliberate here. `initialTheme` is
+> read once when the provider mounts ([placement rules](../api/provider.md#initial-theme-behavior))
+> and ignored on subsequent re-renders, so a reactive subscription
+> would never trigger anything. Later theme changes flow through
+> `setTheme` plus `setColorMode` in the settings screen below.
+
+### Settings Screen
+
+Call both `setTheme` (animates and updates `preference`) and
+`setColorMode` (persists) in the same handler. Drive the highlight
+from `preference`. It updates synchronously inside `setTheme`, so
+no local state is needed.
+
+```tsx
+import { View, Text, Pressable } from 'react-native'
+import { useTheme } from '@/lib/theme'
+import { useThemeStore } from '@/stores/theme-store'
+
+const OPTIONS = ['system', 'light', 'dark'] as const
+
+function ThemeSettings() {
+  const { theme, preference, setTheme, isTransitioning } = useTheme()
+  const setColorMode = useThemeStore((s) => s.setColorMode)
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {OPTIONS.map((option) => (
+        <Pressable
+          key={option}
+          disabled={isTransitioning}
+          onPress={() => {
+            setTheme(option)
+            setColorMode(option)
+          }}
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: 8,
+            alignItems: 'center',
+            backgroundColor:
+              preference === option ? theme.colors.primary : 'transparent',
+          }}
+        >
+          <Text
+            style={{ color: preference === option ? '#fff' : theme.colors.text }}
+          >
+            {option}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  )
+}
+```
+
+> **Note.** `preference` updates synchronously inside `setTheme`, so the
+> highlight paints in the same commit as the tap. Reading from the
+> store instead would lag one frame and show the wrong highlight
+> during the transition.
+
+## Redux / Redux Toolkit
+
+Same pattern. Read the persisted `colorMode` from the store and pass
+it as `initialTheme`:
+
+```tsx
+<Provider store={store}>
+  <ThemeTransitionProvider initialTheme={store.getState().theme.colorMode}>
+    <App />
+  </ThemeTransitionProvider>
+</Provider>
+```
+
+In the settings screen, call `setTheme(option)` and
+`dispatch(setColorMode(option))` together in `onPress`, and read
+`preference` from `useTheme()` for the highlight.
+
+## MMKV
+
+> **Warning.** MMKV requires native modules and is **not compatible with Expo Go**.
+> Use a [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+> or the bare workflow.
+
+MMKV reads are synchronous, so you can read the persisted value
+inline without a hydration step.
+
+```ts title="hooks/useStoredTheme.ts"
+import { useMMKVString } from 'react-native-mmkv'
+
+export function useStoredTheme() {
+  const [value, setValue] = useMMKVString('themePreference')
+  const colorMode = (value ?? 'system') as 'system' | 'light' | 'dark'
+  return { colorMode, setColorMode: setValue }
+}
+```
+
+```tsx title="app/_layout.tsx"
+import { useStoredTheme } from '@/hooks/useStoredTheme'
+import { ThemeTransitionProvider } from '@/lib/theme'
+
+export default function RootLayout() {
+  const { colorMode } = useStoredTheme()
+
+  return (
+    <ThemeTransitionProvider initialTheme={colorMode}>
+      <App />
+    </ThemeTransitionProvider>
+  )
+}
+```
+
+Settings screen, same pattern: `setTheme(option)` and
+`setColorMode(option)` together in `onPress`.
+
+## Comparison
+
+| | Zustand | Redux | MMKV |
+|---|---|---|---|
+| Storage | AsyncStorage (async) | AsyncStorage (async) | MMKV (sync) |
+| Wait for hydration? | Yes | Yes (or read on mount) | No |
+| Expo Go compatible? | Yes | Yes | No |
+| Setup complexity | Low | Medium | Low (after install) |
+
+## See Also
+
+- [Persisted Preference](../recipes/persistence.md). The AsyncStorage-only version.
+- [Theme Picker](../examples/theme-picker.md). The picker UI built around `preference`.
+- [useTheme](../api/use-theme.md). The hook reference.

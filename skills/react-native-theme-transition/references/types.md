@@ -1,0 +1,350 @@
+# Types
+
+The library exports its types as named imports. Most of them are
+inferred automatically from your theme map, so the only ones you
+typically write by hand are `SetThemeOptions` (when passing options
+through a wrapper) and `ThemeTransitionConfig` (when you split your
+config across files).
+
+## Reference
+
+```ts
+import type {
+  ColorScheme,
+  OriginSpec,
+  SetThemeOptions,
+  SystemThemeMap,
+  ThemeDefinition,
+  ThemeNames,
+  ThemeTransitionAPI,
+  ThemeTransitionConfig,
+  TokenNames,
+  TransitionOrigin,
+  TransitionType,
+  UseThemeResult,
+} from 'react-native-theme-transition'
+```
+
+The library also exports two runtime values:
+
+```ts
+import { TRANSITION_META, TRANSITION_TYPES } from 'react-native-theme-transition'
+```
+
+`TRANSITION_TYPES` is a readonly array of every `TransitionType`. Use
+it to build a transition picker, or to validate user input without
+hardcoding the list.
+
+`TRANSITION_META` is the per-transition metadata table that drives
+the type union. Use it to build option pickers that adapt to the
+selected transition: show an "Inverted" toggle only when the
+transition supports it, an origin picker only when it grows from a
+point, and so on.
+
+```ts
+const meta = TRANSITION_META[transition]
+// meta.kind            : 'fade' | 'reveal' | 'shape' | 'shader' | 'strip'
+// meta.needsOrigin     : whether the transition reads an `origin` field
+// meta.invertible      : whether the transition accepts `inverted: true`
+// meta.capturesNew     : whether the engine takes a second snapshot after the swap
+// meta.defaultDuration : milliseconds used when no `duration` is set
+```
+
+| Transition | `kind` | `needsOrigin` | `invertible` | `capturesNew` | `defaultDuration` |
+|---|---|:-:|:-:|:-:|:-:|
+| `fade` | `'fade'` | — | — | — | `350` |
+| `circularReveal` | `'reveal'` | ✓ | ✓ | — | `350` |
+| `wipe` | `'strip'` | — | — | — | `350` |
+| `slide` | `'strip'` | — | — | ✓ | `350` |
+| `split` | `'strip'` | — | ✓ | — | `350` |
+| `heart` | `'shape'` | ✓ | ✓ | — | `800` |
+| `star` | `'shape'` | ✓ | ✓ | — | `800` |
+| `pixelize` | `'shader'` | — | — | ✓ | `750` |
+| `dissolve` | `'shader'` | — | — | — | `750` |
+
+## `ColorScheme`
+
+```ts
+type ColorScheme = 'light' | 'dark'
+```
+
+Binary OS color scheme. Used by `theme.scheme`, `SystemThemeMap`, and
+internal helpers. Never `'unspecified'`. The library normalizes
+unspecified to `'light'`.
+
+## `ThemeDefinition`
+
+```ts
+type ThemeDefinition = Record<string, string>
+```
+
+A flat record where keys are token names and values are React Native
+color strings (hex, rgb, rgba, named colors). Every theme in a
+configuration must declare the same set of keys.
+
+## `ThemeNames`
+
+```ts
+type ThemeNames<T extends Record<string, ThemeDefinition>> = keyof T & string
+```
+
+Union of theme name strings from your theme map.
+
+## `TokenNames`
+
+```ts
+type TokenNames<T extends Record<string, ThemeDefinition>> = keyof T[ThemeNames<T>] & string
+```
+
+Union of token name strings shared across every theme in `T`.
+
+## `SystemThemeMap`
+
+```ts
+type SystemThemeMap<Names extends string> = Record<ColorScheme, Names>
+```
+
+Maps OS color schemes to theme names. Both `light` and `dark` keys are
+required. Only needed when your themes are not literally named
+`'light'` and `'dark'`. See
+[createThemeTransition](./api/create-theme-transition.md#systemthememap).
+
+## `ThemeTransitionConfig`
+
+Configuration for `createThemeTransition`. The full table lives at
+[Create theme transition / Arguments](./api/create-theme-transition.md#arguments).
+
+| Field | Type | Description |
+|---|---|---|
+| `themes` | `T` | All themes keyed by name. |
+| `animated` | `boolean` | Default animation on or off. Defaults to `true`. |
+| `transition` | `TransitionType` | Default transition kind. Defaults to `'fade'`. |
+| `darkThemes` | `Names[]` | Themes that register as a dark color scheme with the OS. |
+| `systemThemeMap` | `SystemThemeMap<Names>` | Maps OS appearance to your theme names. |
+| `onTransitionStart` | `(name) => void` | Animated transition begins. |
+| `onTransitionEnd` | `(name) => void` | Animated transition completes. |
+| `onThemeChange` | `(name) => void` | Any theme change. |
+
+`duration` lives only on the per-call `SetThemeOptions`. There is no
+config-level `duration`. Each transition kind has its own calibrated
+default.
+
+## `ThemeTransitionAPI`
+
+Return type of `createThemeTransition`. Contains
+`ThemeTransitionProvider` and `useTheme`.
+
+```ts
+interface ThemeTransitionAPI<T> {
+  ThemeTransitionProvider: (props: {
+children: React.ReactNode
+initialTheme: ThemeNames<T> | 'system'
+  }) => React.ReactNode
+  useTheme: () => UseThemeResult<TokenNames<T>, ThemeNames<T>>
+}
+```
+
+## `UseThemeResult`
+
+The return type of `useTheme()`. Two orthogonal concepts split into
+four fields.
+
+| Field | Type | Description |
+|---|---|---|
+| `theme.name` | `Names` | The theme currently painted on screen. Always concrete. Never `'system'`. |
+| `theme.colors` | `Record<Tokens, string>` | Resolved color tokens for the painted theme. |
+| `theme.scheme` | `ColorScheme` | Binary classification, derived from `darkThemes`. |
+| `preference` | `Names \| 'system'` | The theme the user explicitly picked. |
+| `isTransitioning` | `boolean` | Transition overlay is visible. |
+| `setTheme` | `(name, opts?) => 'accepted' \| 'ignored'` | Change the preference. |
+
+The split is deliberate. `theme` is what's painted right now (use it
+for rendering, toggles, asset lookups); `preference` is what the user
+picked (use it for picker highlights and persistence). See the
+[theme vs preference decision table](./api/use-theme.md#theme-vs-preference).
+
+## `SetThemeOptions`
+
+Discriminated union on `transition`. The fields available depend on
+which transition you pick. TypeScript only accepts combinations valid
+for that variant.
+
+### Common Fields
+
+Every variant accepts these:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `animated` | `boolean` | `true` | Override the config-level animation flag. |
+| `duration` | `number` | per-kind default (see below) | Override the per-kind default duration in milliseconds. Must be `>= 0` and finite; throws on `NaN`, `Infinity`, or negative values. |
+| `easing` | `(t: number) => number` | `Easing.out(Easing.cubic)` | Reanimated easing function. |
+| `onTransitionStart` | `(name) => void` | — | Per-call start callback. Fires after `config.onTransitionStart`. |
+| `onTransitionEnd` | `(name) => void` | — | Per-call end callback. Fires after `config.onTransitionEnd`. |
+
+### Variant-Specific Fields
+
+| When `transition` is | Field | Type | Default | Description |
+|---|---|---|---|---|
+| `'circularReveal'`, `'heart'`, `'star'` | `origin` | `OriginSpec` | screen center | Point or ref where the shape grows from. |
+| `'circularReveal'`, `'heart'`, `'star'` | `inverted` | `boolean` | `false` | When `true`, the old theme shrinks into the origin instead of the new theme growing out of it. |
+| `'wipe'`, `'slide'` | `direction` | `'left' \| 'right' \| 'up' \| 'down'` | `'right'` | Cardinal direction the motion is heading. |
+| `'split'` | `mode` | `'left-right' \| 'top-bottom'` | `'left-right'` | How the screen is divided. |
+| `'split'` | `inverted` | `boolean` | `false` | `false` parts outward, `true` closes inward like shutters. |
+| `'pixelize'` | `blockSize` | `number` | `52` | Maximum pixel block size in points at the midpoint. Must be a finite number `>= 2`; throws otherwise. |
+| `'dissolve'` | `noiseSize` | `number` | `5` | Noise cell size in points. Must be a finite number `>= 1`; throws otherwise. |
+
+### Default Durations
+
+When `duration` is omitted, each transition uses its calibrated default:
+
+| Transition | Default |
+|---|---|
+| `fade`, `circularReveal`, `wipe`, `slide`, `split` | `350` ms |
+| `heart`, `star` | `800` ms |
+| `pixelize`, `dissolve` | `750` ms |
+
+The same values are exposed at runtime via `TRANSITION_META[transition].defaultDuration`.
+
+### Direction Semantics
+
+`direction` has the same meaning on `wipe` and `slide`. It names the
+direction the motion is heading. So `direction: 'right'` means the
+new theme enters from the LEFT edge and moves rightward.
+
+The library does not auto-flip `direction` for RTL layouts. The
+value is absolute, not relative to reading order. If you want the
+sweep to follow the reading direction in an RTL locale, flip it
+yourself based on `I18nManager.isRTL`:
+
+```ts
+import { I18nManager } from 'react-native'
+
+const direction = I18nManager.isRTL ? 'left' : 'right'
+setTheme('dark', { transition: 'wipe', direction })
+```
+
+### Examples
+
+```ts
+// Default fade.
+setTheme('dark')
+
+// Wipe right (new theme enters from left).
+setTheme('dark', { transition: 'wipe', direction: 'right', duration: 500 })
+
+// Circular reveal, old theme shrinks inward.
+setTheme('dark', { transition: 'circularReveal', origin: btnRef, inverted: true })
+
+// Split closing inward like shutters.
+setTheme('dark', { transition: 'split', mode: 'top-bottom', inverted: true })
+
+// Pixelize with a custom block size.
+setTheme('dark', { transition: 'pixelize', blockSize: 32 })
+```
+
+## `OriginSpec`
+
+```ts
+type OriginSpec = TransitionOrigin | React.RefObject<View | null>
+```
+
+Either an explicit point or a ref whose center is measured at call
+time. A ref that has unmounted or returns no coordinates falls back
+to the center of the screen.
+
+## `TransitionOrigin`
+
+```ts
+interface TransitionOrigin {
+  x: number
+  y: number
+}
+```
+
+Explicit origin point in React Native density-independent points,
+relative to the provider's root view. Both `x` and `y` must be finite
+numbers; the engine throws on `NaN` or `Infinity` to prevent silent
+geometry corruption inside the overlay's bounding-radius math.
+
+## `TransitionType`
+
+```ts
+type TransitionType =
+  | 'fade'
+  | 'circularReveal'
+  | 'heart' | 'star'
+  | 'wipe' | 'slide' | 'split'
+  | 'pixelize' | 'dissolve'
+```
+
+Derived from the internal `TRANSITION_META` table. Adding a new
+transition in source updates both this type union and the runtime
+`TRANSITION_TYPES` array.
+
+## Type Inference Example
+
+You never need to write generic types by hand. TypeScript infers
+theme names and token keys from `config.themes`, then propagates them
+to `useTheme` and `setTheme`.
+
+```ts
+const light = { bg: '#fff', text: '#000' }
+const dark  = { bg: '#000', text: '#fff' }
+
+const { useTheme } = createThemeTransition({ themes: { light, dark } })
+
+const { theme, preference, setTheme } = useTheme()
+
+theme.colors.bg     // type: string, autocomplete: 'bg' | 'text'
+theme.colors.foo    // TypeScript error
+theme.name          // type: 'light' | 'dark' (always concrete)
+theme.scheme        // type: 'light' | 'dark'
+preference          // type: 'light' | 'dark' | 'system'
+setTheme('dark')    // ok, returns 'accepted' | 'ignored'
+setTheme('ocean')   // TypeScript error
+setTheme('system')  // always valid
+```
+
+### Preserving Inference Across Files
+
+If you split your themes into a separate file or want to type-annotate
+the themes map, use the `satisfies` operator instead of a plain type
+annotation. A direct annotation widens the type back to
+`Record<string, ThemeDefinition>` and you lose the literal inference
+of theme names and token keys.
+
+```ts
+import { createThemeTransition, type ThemeDefinition } from 'react-native-theme-transition'
+
+// Wrong - widens to Record<string, ThemeDefinition>, useTheme loses narrowing.
+const themes: Record<string, ThemeDefinition> = { light, dark }
+
+// Right - keeps the literal type, useTheme narrows to 'light' | 'dark'.
+const themes = { light, dark } satisfies Record<string, ThemeDefinition>
+
+createThemeTransition({ themes })
+```
+
+This is a general TypeScript footgun, not specific to this library:
+`satisfies` validates the value against a type without widening,
+while `:` widens to the annotation. When in doubt, omit the
+annotation entirely - TypeScript infers the most specific type from
+the literal.
+
+## When to Import Each Type
+
+| Building | Import |
+|---|---|
+| A component that consumes theme colors | `UseThemeResult` (usually inferred) |
+| A bridge to a state manager | `ThemeNames` |
+| A wrapper that forwards `setTheme` options | `SetThemeOptions` |
+| A typed config object you split into a separate file | `ThemeTransitionConfig` |
+| Custom system theme mapping | `SystemThemeMap` |
+| Custom transition origin | `OriginSpec`, `TransitionOrigin` |
+| Enumerating transition styles | `TransitionType`, `TRANSITION_TYPES` |
+| Building an option picker that adapts per transition | `TRANSITION_META` |
+
+## See Also
+
+- [createThemeTransition](./api/create-theme-transition.md). The factory.
+- [useTheme](./api/use-theme.md). The hook.

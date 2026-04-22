@@ -1,0 +1,64 @@
+# Overview
+
+`react-native-theme-transition` brings animated theme switching to
+React Native. It snapshots the current screen, swaps your theme
+underneath, and animates the snapshot away with one of nine styles.
+Built on Skia and Reanimated, both bundled in modern Expo SDKs (54+),
+so it works in Expo Go without a prebuild.
+
+## Highlights
+
+- **Nine transition styles.** `fade`, `circularReveal`, `heart`,
+  `star`, `wipe`, `slide`, `split`, `pixelize`, `dissolve`.
+  Reveal-style transitions support an `inverted` variant.
+- **Expo Go ready.** Works with Expo SDK 54+ out of the box. Bare
+  React Native CLI also supported.
+- **Full TypeScript inference.** `useTheme()` and `setTheme()` know
+  your theme names and color tokens without manual generics.
+- **System theme built in.** Follows OS appearance with zero-flash
+  startup. `preference` and `theme` are kept separate so pickers
+  and persistence work correctly.
+- **Strict runtime validation.** Invalid options throw immediately
+  with clear error messages.
+- **React Compiler compatible.** All hooks follow the
+  [Rules of React](https://react.dev/reference/rules).
+
+## How It Compares
+
+| Feature | react-native-theme-transition | react-native-theme-switch-animation | Uniwind Pro | Unistyles 3 |
+|---|:---:|:---:|:---:|:---:|
+| Animated transitions | 9 styles | Fade or circular reveal | Native snapshot | None (instant) |
+| Expo Go support | Yes | No (prebuild) | No (prebuild) | No (prebuild) |
+| Execution | Skia and Reanimated | Native modules | C++ engine | C++ (ShadowTree) |
+| Theme state management | Provider and typed hooks | Bring your own | Built-in | Built-in |
+| TypeScript generics | Deep inference | Basic | Auto-generated | Manual override |
+| System theme listener | Built-in | Not included | Built-in | Adaptive themes |
+| Price | Free (MIT) | Free (MIT) | $99 / seat / year | Free (MIT) |
+
+## Trade-Offs
+
+- **No interaction during transitions.** Touches, scrolls, and
+  additional `setTheme` calls are blocked while the animation is
+  running. Use `isTransitioning` to disable buttons visually.
+- **Static overlay.** The transition renders a captured snapshot,
+  so dynamic content (videos, live counters) appears frozen for the
+  duration of the animation.
+- **No built-in Reduce Motion handling.** The library is
+  policy-free on accessibility. If you want to honor the OS Reduce
+  Motion setting, call `setTheme(name, { animated: false })` from
+  your own wrapper.
+
+## Requirements
+
+- React `>= 19.0.0`
+- React Native `>= 0.78.0`
+- `react-native-reanimated` `>= 4.0.0`
+- `@shopify/react-native-skia` `>= 2.0.0`
+- `react-native-worklets` `>= 0.5.0`
+
+## See Also
+
+- [Quick start](./quick-start.md). Three-step setup.
+- [createThemeTransition](./api/create-theme-transition.md). The factory.
+- [useTheme](./api/use-theme.md). The hook.
+- [How transitions work](./guides/how-it-works.md). Capture, swap, animate.

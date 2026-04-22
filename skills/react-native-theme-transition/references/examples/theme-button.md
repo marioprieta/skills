@@ -1,0 +1,61 @@
+# Theme Button
+
+A button with a static label that cycles through themes on tap.
+Because the button's visuals don't depend on which theme is active,
+you can call `setTheme` directly. No optimistic state, no effects,
+no `preference` reads.
+
+## Example
+
+```tsx
+import { Pressable, Text } from 'react-native'
+import { useTheme } from '@/lib/theme'
+
+const CYCLE = ['light', 'dark'] as const
+
+export function ThemeButton() {
+  const { theme, setTheme, isTransitioning } = useTheme()
+
+  const currentIndex = CYCLE.findIndex((name) => name === theme.name)
+  const next = CYCLE[(Math.max(0, currentIndex) + 1) % CYCLE.length]
+
+  return (
+    <Pressable
+      disabled={isTransitioning}
+      onPress={() => setTheme(next)}
+      style={{
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        backgroundColor: theme.colors.primary,
+      }}
+    >
+      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+        Switch theme
+      </Text>
+    </Pressable>
+  )
+}
+```
+
+> **Warning.** Don't dim the button based on `isTransitioning` (e.g.
+> `opacity: isTransitioning ? 0.5 : 1`). The snapshot captures
+> whatever is on screen, and a dimmed button will cross-fade with its
+> own full-opacity version and produce a visible flash. Use
+> `disabled` for interaction blocking; leave the styling alone.
+
+## When the Trigger Doesn't Reflect the Active Theme
+
+A plain "Switch theme" button, a programmatic call from an effect,
+or a deep link (anything that doesn't need to highlight the *current*
+option) can just call `setTheme` directly. No state, no effects.
+
+See [Theme Picker](../examples/theme-picker.md) for the pattern when
+you need to highlight the user's current pick. That one reads
+`preference` from the hook.
+
+## See Also
+
+- [Theme Toggle](../examples/theme-toggle.md). Binary dark/light switch.
+- [Theme Picker](../examples/theme-picker.md). Segmented control with `preference` highlight.
+- [useTheme](../api/use-theme.md). The hook reference.

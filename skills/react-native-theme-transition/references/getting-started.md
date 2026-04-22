@@ -1,0 +1,133 @@
+# Getting Started
+
+`react-native-theme-transition` ships as a pure JavaScript / TypeScript
+package. Installing it means installing the package itself plus three
+peer dependencies that handle the heavy lifting: `@shopify/react-native-skia`
+(snapshot capture and rendering), `react-native-reanimated` (the
+animation driver), and `react-native-worklets` (the worklet runtime
+Reanimated 4 builds on).
+
+## Installation
+
+**Expo (SDK 54+):**
+
+Reanimated and Skia ship with modern Expo SDKs, so you don't need
+to install Reanimated separately.
+
+```bash
+npx expo install react-native-theme-transition @shopify/react-native-skia react-native-worklets
+```
+
+> **Note.** **Expo SDK 55+:** the blank template no longer bundles
+> `babel-preset-expo`. If your project doesn't have a
+> `babel.config.js` yet, install it:
+> `npx expo install babel-preset-expo`.
+
+**Expo (SDK < 54):**
+
+```bash
+npx expo install react-native-theme-transition @shopify/react-native-skia react-native-reanimated react-native-worklets
+```
+
+**React Native CLI:**
+
+```bash
+npm install react-native-theme-transition @shopify/react-native-skia react-native-reanimated react-native-worklets
+```
+
+Then install the iOS pods:
+
+```bash
+cd ios && pod install && cd ..
+```
+
+## Tested Versions
+
+The peer dependency minimums in `package.json` are the lowest
+versions the library is built to support, but day-to-day development
+and CI run against a tighter, modern set:
+
+| Peer | Declared minimum | Tested against |
+|---|---|---|
+| `react` | `>=19.0.0` | `19.2.0` |
+| `react-native` | `>=0.78.0` | `0.83.x` |
+| `@shopify/react-native-skia` | `>=2.0.0` | `2.4.x` |
+| `react-native-reanimated` | `>=4.0.0` | `4.2.x` |
+| `react-native-worklets` | `>=0.5.0` | `0.7.x` |
+
+If you hit a real bug on the declared minimums, please file an
+issue with your exact lockfile versions. The minimums are kept
+honest by the published peer ranges, not by a continuous test
+matrix.
+
+## Bare React Native CLI: Verify the New Architecture
+
+Skia 2 and Reanimated 4 require React Native's New Architecture
+(Fabric + TurboModules). On React Native 0.78+ it is enabled by
+default. Expo SDK 54+ already enables it for managed apps.
+
+Bare React Native CLI projects upgraded from older versions can
+still have the old architecture wired in. Confirm before installing:
+
+- **iOS**: `ios/Podfile` should not pin `:fabric_enabled => false`.
+- **Android**: `android/gradle.properties` should have `newArchEnabled=true`.
+
+If either is off, enable it and run a clean install (`pod install`,
+Gradle sync). Without the New Architecture the build fails with
+errors that mention `RCTFabric` or `TurboModule`.
+
+## Configure Babel
+
+Add `react-native-worklets/plugin` as the **last** plugin in your
+`babel.config.js`:
+
+```js title="babel.config.js"
+module.exports = function (api) {
+  api.cache(true)
+  return {
+presets: ['babel-preset-expo'],
+plugins: [
+  // SDK 55+: do NOT add 'react-native-reanimated/plugin'.
+  // babel-preset-expo already includes it from SDK 55 onwards.
+  // SDK 54 and below: you DO need 'react-native-reanimated/plugin' here.
+  'react-native-worklets/plugin', // must be last
+],
+  }
+}
+```
+
+## Clear Cache and Restart
+
+```bash
+npx expo start -c
+```
+
+## Verify The Install
+
+The fastest way to confirm the install is healthy: open
+`src/lib/theme.ts` in a fresh file and import the factory. If
+TypeScript autocompletes the `createThemeTransition` symbol and the
+Metro log shows no warnings about missing native modules, the
+install is good.
+
+```ts title="lib/theme.ts"
+import { createThemeTransition } from 'react-native-theme-transition'
+
+export const { ThemeTransitionProvider, useTheme } = createThemeTransition({
+  themes: {
+light: { background: '#ffffff', text: '#000000' },
+dark: { background: '#000000', text: '#ffffff' },
+  },
+})
+```
+
+If Metro complains about `@shopify/react-native-skia` or
+`react-native-worklets`, see [Troubleshooting](./guides/troubleshooting.md).
+The most common cause is forgetting to clear the Metro cache after
+adding the worklets babel plugin.
+
+## See Also
+
+- [Quick start](./quick-start.md). Three-step setup and your first transition.
+- [createThemeTransition](./api/create-theme-transition.md). The factory and every config option.
+- [useTheme](./api/use-theme.md). The hook that exposes `theme`, `preference`, and `setTheme`.
