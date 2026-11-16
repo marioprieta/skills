@@ -1,4 +1,4 @@
-# Haptics and Analytics
+# Haptics & Analytics
 
 The library exposes three lifecycle callbacks (`onTransitionStart`,
 `onTransitionEnd`, and `onThemeChange`), which are exactly the right
@@ -18,7 +18,7 @@ import { createThemeTransition } from 'react-native-theme-transition'
 export const { ThemeTransitionProvider, useTheme } = createThemeTransition({
   themes: { light, dark },
   onTransitionStart: () => {
-Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
   },
 })
 ```
@@ -38,17 +38,17 @@ function ThemeToggle() {
   const { theme, setTheme } = useTheme()
 
   return (
-<Pressable
-  onPress={() => {
+    <Pressable
+      onPress={() => {
         setTheme(theme.name === 'light' ? 'dark' : 'light', {
           onTransitionStart: () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
           },
         })
-  }}
->
-  <Text>Toggle</Text>
-</Pressable>
+      }}
+    >
+      <Text>Toggle</Text>
+    </Pressable>
   )
 }
 ```
@@ -58,20 +58,22 @@ The per-call callback fires **after** the config-level one. See
 
 ## Analytics
 
-`onThemeChange` is the only callback guaranteed to fire on every code
-path: animated, instant, system-driven, and capture-failure
-fallbacks. Use it as the single source of truth for tracking.
+Use `onThemeChange` to track applied animated, instant, system-driven,
+and capture-failure changes. It does not fire for ignored calls,
+mode-only no-ops, start-callback exceptions, or provider unmounts.
+It reports the applied theme, not screen presentation; see
+[Callbacks](../guides/callbacks.md) for those distinctions.
 
 ```ts title="lib/theme.ts"
 export const { ThemeTransitionProvider, useTheme } = createThemeTransition({
   themes: { light, dark },
   onThemeChange: (name) => {
-analytics.track('theme_changed', { theme: name })
+    analytics.track('theme_changed', { theme: name })
   },
 })
 ```
 
-> **Note.** `onTransitionStart` and `onTransitionEnd` fire only for animated
+> `onTransitionStart` and `onTransitionEnd` fire only for animated
 > transitions and can leave gaps on capture failures. Use them for
 > feedback effects, not for "the theme is now X" tracking.
 
@@ -82,14 +84,14 @@ function ThemeButton() {
   const { setTheme, isTransitioning } = useTheme()
 
   return (
-<Pressable disabled={isTransitioning} onPress={() => setTheme('dark')}>
-  <Text>Switch theme</Text>
-</Pressable>
+    <Pressable disabled={isTransitioning} onPress={() => setTheme('dark')}>
+      <Text>Switch theme</Text>
+    </Pressable>
   )
 }
 ```
 
-> **Warning.** Do not change visual styles based on `isTransitioning`, e.g.
+> Do not change visual styles based on `isTransitioning`, e.g.
 > `opacity: isTransitioning ? 0.5 : 1`. The snapshot captures the
 > current visual state, and style changes will bleed into the
 > cross-fade. Use `disabled` (which doesn't change styling) instead.
@@ -105,7 +107,7 @@ function HeavyChart() {
   const { theme, isTransitioning } = useTheme()
 
   if (isTransitioning) {
-return <View style={{ height: 200, backgroundColor: theme.colors.card }} />
+    return <View style={{ height: 200, backgroundColor: theme.colors.card }} />
   }
 
   return <ExpensiveChartComponent colors={theme.colors} />

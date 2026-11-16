@@ -10,7 +10,7 @@ called outside a `ThemeTransitionProvider`.
 const { theme, preference, setTheme, isTransitioning } = useTheme()
 ```
 
-The hook is created by [createThemeTransition](../api/create-theme-transition.md)
+The hook is created by [createThemeTransition](./create-theme-transition.md)
 and is fully typed against your theme map. `theme.name`,
 `theme.colors`, and `setTheme`'s argument all narrow to the names
 you defined in `themes`.
@@ -23,7 +23,7 @@ you defined in `themes`.
 | `theme.colors` | `Record<Token, string>` | Resolved color tokens for the painted theme. |
 | `theme.scheme` | `'light' \| 'dark'` | Binary classification, derived from `darkThemes`. |
 | `preference` | `Names \| 'system'` | What the user explicitly picked. Mirrors the last value passed to `setTheme`. |
-| `isTransitioning` | `boolean` | `true` while a transition overlay is visible. |
+| `isTransitioning` | `boolean` | `true` from the colour-swap commit through JS cleanup; excludes initial capture/setup. |
 | `setTheme` | `(name, opts?) => 'accepted' \| 'ignored'` | Change the user's preference. See [setTheme](#settheme) below. |
 
 ## Theme vs Preference
@@ -34,7 +34,7 @@ right one matters.
 - **`theme`** describes what is currently painted on screen.
   `theme.name` is always concrete (never `'system'`). When the user
   picks `'system'`, the library resolves it via
-  [systemThemeMap](../api/create-theme-transition.md#systemthememap)
+  [systemThemeMap](./create-theme-transition.md#systemthememap)
   and exposes the result here.
 - **`preference`** describes what the user explicitly picked. It can
   be `'system'`. It mirrors the last argument passed to `setTheme`.
@@ -122,9 +122,10 @@ setTheme(name, options?): 'accepted' | 'ignored'
 ```
 
 Changes the user's preference. The new preference is reflected
-synchronously in subsequent reads of `preference`, so picker UIs
-that highlight against it can repaint before the snapshot is
-captured.
+with the colour swap: an animated transition writes it in the
+commit that applies the new theme, while `animated: false` and a
+`'system'` pick that keeps the painted theme write it right away.
+Picker UIs that highlight against it need no local state.
 
 ### Arguments
 
@@ -138,7 +139,7 @@ captured.
 | Value | Meaning |
 |---|---|
 | `'accepted'` | The library will apply the change, instantly or via an animated transition. |
-| `'ignored'` | A transition is already in flight, or the call targets the same preference that's already active. |
+| `'ignored'` | A transition is in flight, or both the resolved target and system/manual mode are unchanged. |
 
 Most callers can discard the return value. `isTransitioning` and the
 configured callbacks cover the common cases. The discriminated
@@ -169,8 +170,9 @@ setTheme('dark', { animated: false })
 
 ## `isTransitioning`
 
-`true` from just after the snapshot is captured until the animation
-completes. Use it to disable interactive controls so a second call
+`true` from the colour-swap commit until JS cleanup runs. The old
+snapshot is already mounted and the paint waits have completed when this
+flag changes; it does not cover the initial capture/setup period. Use it to disable interactive controls so a second call
 can't be queued mid-transition.
 
 ```tsx
@@ -179,7 +181,7 @@ can't be queued mid-transition.
 </Pressable>
 ```
 
-> **Note.** Touch input is also blocked internally from the moment `setTheme`
+> Touch input is also blocked internally from the moment `setTheme`
 > is called, even before `isTransitioning` flips, since the snapshot
 > hasn't been captured yet. The flag is there for visual feedback
 > like `disabled={isTransitioning}`. The library protects you from
@@ -187,10 +189,12 @@ can't be queued mid-transition.
 
 ## Picker Pattern
 
-`preference` updates synchronously inside `setTheme`, so pickers can
-highlight against it directly. No local `picked` state is needed.
-The engine waits one frame before capturing the snapshot, which
-gives React time to commit and paint the new highlight.
+`preference` is written in the commit that swaps the colour tokens,
+so pickers can highlight against it directly. No local `picked`
+state is needed. This avoids a preference-driven context update
+before capture. The snapshot retains the previous selection; the new
+highlight appears as the overlay reveals the new theme. System-mode
+changes and app callbacks can still trigger other React updates.
 
 ```tsx
 import { Pressable, Text, View } from 'react-native'
@@ -254,7 +258,7 @@ crash.
 
 ## See Also
 
-- [createThemeTransition](../api/create-theme-transition.md). The factory that produces the hook.
+- [createThemeTransition](./create-theme-transition.md). The factory that produces the hook.
 - [SetThemeOptions](../types.md#setthemeoptions). Every variant and field.
 - [How transitions work](../guides/how-it-works.md). Capture, swap, animate.
 - [Callbacks](../guides/callbacks.md). When each callback fires.

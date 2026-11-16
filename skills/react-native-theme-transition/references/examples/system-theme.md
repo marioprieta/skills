@@ -91,13 +91,13 @@ createThemeTransition({
 })
 ```
 
-> **Warning.** Do **not** call `Appearance.setColorScheme` yourself. The library
+> Do **not** call `Appearance.setColorScheme` yourself. The library
 > tracks system mode through that call; manual writes desync it and
 > break the next `setTheme('system')` on Android.
 
 ## See Also
 
-- [Theme Picker](../examples/theme-picker.md). Picker that includes a `'system'` row.
+- [Theme Picker](./theme-picker.md). Picker that includes a `'system'` row.
 - [Persisted Preference](../recipes/persistence.md). Restore the user's pick on launch.
 - [createThemeTransition](../api/create-theme-transition.md#systemthememap). The `systemThemeMap` field.
 - [Callbacks](../guides/callbacks.md). System-driven changes go through `onThemeChange`.

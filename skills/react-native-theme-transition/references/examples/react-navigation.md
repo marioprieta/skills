@@ -52,7 +52,7 @@ snapshot capture includes everything below:
 </ThemeTransitionProvider>
 ```
 
-> **Note.** Use `theme.scheme` for React Navigation's `dark` flag. It's always
+> Use `theme.scheme` for React Navigation's `dark` flag. It's always
 > `'light'` or `'dark'`, regardless of how many themes you define or
 > whether the user is in system mode. No per-theme membership check
 > needed even with custom dark themes like `'midnight'` or `'ocean'`
@@ -101,7 +101,7 @@ export default function RootLayout() {
 }
 ```
 
-> **Warning.** `ThemeProvider` from `@react-navigation/native` is **non-optional**
+> `ThemeProvider` from `@react-navigation/native` is **non-optional**
 > on iOS if you want the safe-area zones (top status bar, bottom home
 > indicator) to follow your theme. React Navigation's native-stack
 > reads `colors.background` from this provider and applies it as the

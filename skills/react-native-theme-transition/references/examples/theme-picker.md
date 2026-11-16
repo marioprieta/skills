@@ -3,9 +3,8 @@
 A segmented control where the active option is highlighted. The
 highlight reads `preference` (not `theme.name`) so the `'system'`
 row can win when the user is following the OS. Because `preference`
-updates synchronously inside `setTheme`, there's no need for local
-`picked` state. The highlight repaints in the same commit as the
-tap.
+carries the raw pick, there's no need for local `picked` state.
+The highlight moves in the commit that applies the new theme.
 
 ## Example
 
@@ -54,15 +53,14 @@ selected: the library always resolves `'system'` to a real theme like
 `'light'` or `'dark'`, and that's what `theme.name` would carry.
 
 `preference` mirrors the raw value the user passed to `setTheme` (or
-the initial `initialTheme` prop). It updates synchronously when
-`setTheme` runs, so the highlight repaints in the same commit. The
-engine waits one frame before capturing, giving React time to paint
-the new selection.
+the initial `initialTheme` prop). It is written with the colour
+swap, so the highlight moves together with the theme while nothing
+re-renders between the tap and the snapshot.
 
 ## With Persistence
 
 Call `setTheme` and your store setter together in `onPress`. Don't
-route through a reactive bridge; it'll race with the settle window.
+route through a reactive bridge; it'll race with the colour swap.
 
 ```tsx
 import { useThemeStore } from '@/stores/theme-store'
@@ -108,6 +106,6 @@ AsyncStorage-only version.
 
 ## See Also
 
-- [Checkmark List](../examples/checkmark-list.md). iOS Settings-style list using the same pattern.
-- [Theme Toggle](../examples/theme-toggle.md). Binary dark/light switch.
+- [Checkmark List](./checkmark-list.md). iOS Settings-style list using the same pattern.
+- [Theme Toggle](./theme-toggle.md). Binary dark/light switch.
 - [useTheme](../api/use-theme.md). The hook reference.

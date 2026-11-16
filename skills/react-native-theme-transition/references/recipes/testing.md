@@ -1,4 +1,4 @@
-# Testing Components
+# Testing Components That Use useTheme
 
 Components that consume `useTheme` need a `ThemeTransitionProvider`
 in their test tree. The provider in turn pulls in
@@ -18,16 +18,16 @@ Create or extend your `jest.setup.js` with the three mocks:
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native')
   return {
-...actual,
-Appearance: {
-  getColorScheme: jest.fn(() => 'light'),
-  setColorScheme: jest.fn(),
-  addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
-},
-AppState: {
-  currentState: 'active',
-  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
-},
+    ...actual,
+    Appearance: {
+      getColorScheme: jest.fn(() => 'light'),
+      setColorScheme: jest.fn(),
+      addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
+    },
+    AppState: {
+      currentState: 'active',
+      addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    },
   }
 })
 
@@ -46,36 +46,37 @@ jest.mock('react-native-reanimated', () => ({
 // Skia - the overlay primitives, plus a fake snapshot pipeline.
 jest.mock('@shopify/react-native-skia', () => {
   const mockPath = () => ({
-addCircle: jest.fn(),
-moveTo: jest.fn(),
-lineTo: jest.fn(),
-cubicTo: jest.fn(),
-close: jest.fn(),
+    // Immutable SkPath surface as of Skia 2.14: no moveTo/lineTo/cubicTo.
+    countPoints: jest.fn(() => 0),
+    isInterpolatable: jest.fn(() => true),
+    interpolate: jest.fn(),
+    dispose: jest.fn(),
   })
   return {
-Canvas: 'Canvas',
-Image: 'SkiaImage',
-Group: 'Group',
-Circle: 'Circle',
-Rect: 'Rect',
-Fill: 'Fill',
-Shader: 'Shader',
-ImageShader: 'ImageShader',
-usePathInterpolation: () => ({ value: mockPath() }),
-Skia: {
-  Path: { Make: mockPath },
-  RuntimeEffect: { Make: jest.fn(() => ({})) },
-},
-makeImageFromView: jest.fn(() =>
-  Promise.resolve({
+    Canvas: 'Canvas',
+    Image: 'SkiaImage',
+    Group: 'Group',
+    Circle: 'Circle',
+    Rect: 'Rect',
+    Fill: 'Fill',
+    Shader: 'Shader',
+    ImageShader: 'ImageShader',
+    PathVerb: { Move: 0, Line: 1, Quad: 2, Conic: 3, Cubic: 4, Close: 5 },
+    interpolatePaths: jest.fn((_value, _input, output) => output[0]),
+    Skia: {
+      Path: { MakeFromCmds: jest.fn(() => mockPath()) },
+      RuntimeEffect: { Make: jest.fn(() => ({})) },
+    },
+    makeImageFromView: jest.fn(() =>
+      Promise.resolve({
         makeNonTextureImage: () => ({ dispose: jest.fn(), width: () => 390, height: () => 844 }),
         dispose: jest.fn(),
-  }),
-),
+      }),
+    ),
   }
 })
 
-// Worklets - only `scheduleOnRN` is reached by the engine.
+// Optional Worklets stub for app code; the current engine does not call scheduleOnRN.
 jest.mock('react-native-worklets', () => ({
   scheduleOnRN: (fn) => fn(),
 }))
@@ -101,39 +102,57 @@ import { Card } from '@/components/Card'
 
 describe('Card', () => {
   it('renders the title in the active theme color', () => {
-const { getByText } = render(
-  <ThemeTransitionProvider initialTheme="light">
+    const { getByText } = render(
+      <ThemeTransitionProvider initialTheme="light">
         <Card title="Hello" />
-  </ThemeTransitionProvider>,
-)
-expect(getByText('Hello')).toBeTruthy()
+      </ThemeTransitionProvider>,
+    )
+    expect(getByText('Hello')).toBeTruthy()
   })
 })
 ```
 
 ## Testing `setTheme` Behavior
 
-The mock above replaces the animation pipeline with a no-op, so
-`setTheme` runs through its guards and state machine but does not
-actually render an overlay. This is enough to test the discriminated
-return value, callback firing, and `theme` / `preference` state
-transitions.
+The mocks replace native primitives, not the engine's asynchronous
+control flow. Animated tests must drive requestAnimationFrame and cleanup
+timers, flush capture promises, and inject failures explicitly. These mocks
+do not validate native paint or animation completion. The repository's
+existing unit suite checks configuration and pure helpers; passing those
+checks alone does not prove provider lifecycle correctness.
+
+For a component-level state check, use an instant switch:
 
 ```tsx title="__tests__/ThemePicker.test.tsx"
-import { fireEvent, render } from '@testing-library/react-native'
-import { ThemeTransitionProvider } from '@/lib/theme'
-import { ThemePicker } from '@/components/ThemePicker'
+import { render, screen, userEvent } from '@testing-library/react-native'
+import { Pressable, Text } from 'react-native'
+import { ThemeTransitionProvider, useTheme } from '@/lib/theme'
 
-it('updates the highlight when the user taps a different option', () => {
-  const { getByText } = render(
-<ThemeTransitionProvider initialTheme="light">
-  <ThemePicker />
-</ThemeTransitionProvider>,
+function ThemeProbe() {
+  const { theme, preference, setTheme } = useTheme()
+  return (
+    <>
+      <Pressable
+        role="button"
+        aria-label="Dark"
+        onPress={() => setTheme('dark', { animated: false })}
+      >
+        <Text>Dark</Text>
+      </Pressable>
+      <Text>{`${preference}:${theme.name}`}</Text>
+    </>
   )
-  fireEvent.press(getByText('Dark'))
-  // `preference` updates synchronously inside `setTheme`, so the
-  // highlight has already moved to the dark option by the time the
-  // press handler returns.
+}
+
+it('applies the preference and theme for an instant switch', async () => {
+  const user = userEvent.setup()
+  await render(
+    <ThemeTransitionProvider initialTheme="light">
+      <ThemeProbe />
+    </ThemeTransitionProvider>,
+  )
+  await user.press(screen.getByRole('button', { name: 'Dark' }))
+  expect(await screen.findByText('dark:dark')).toBeOnTheScreen()
 })
 ```
 
