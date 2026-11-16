@@ -46,12 +46,12 @@ Content outside the provider won't be included in the transition screenshot.
 </NavigationContainer>
 ```
 
-> **Warning.** Bottom sheets (e.g. `@gorhom/bottom-sheet`) must be inside the provider so
+> Bottom sheets (e.g. `@gorhom/bottom-sheet`) must be inside the provider so
 > their backdrop is captured in the screenshot. React Native's built-in `Modal`
 > renders in a separate native window and won't be captured.
 
 ## See Also
 
-- [createThemeTransition](../api/create-theme-transition.md). Factory that produces this provider.
-- [useTheme](../api/use-theme.md). Hook for reading the current theme inside the tree.
+- [createThemeTransition](./create-theme-transition.md). Factory that produces this provider.
+- [useTheme](./use-theme.md). Hook for reading the current theme inside the tree.
 - [Quick Start](../quick-start.md). Minimal setup walkthrough.

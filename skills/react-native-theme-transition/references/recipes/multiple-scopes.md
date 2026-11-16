@@ -135,4 +135,4 @@ audiences, different contexts).
 ## See Also
 
 - [createThemeTransition](../api/create-theme-transition.md). The factory.
-- [Migration from another theme system](../recipes/migration.md). Patterns for moving an existing app onto the library.
+- [Migration from another theme system](./migration.md). Patterns for moving an existing app onto the library.

@@ -137,8 +137,8 @@ Return type of `createThemeTransition`. Contains
 ```ts
 interface ThemeTransitionAPI<T> {
   ThemeTransitionProvider: (props: {
-children: React.ReactNode
-initialTheme: ThemeNames<T> | 'system'
+    children: React.ReactNode
+    initialTheme: ThemeNames<T> | 'system'
   }) => React.ReactNode
   useTheme: () => UseThemeResult<TokenNames<T>, ThemeNames<T>>
 }
@@ -155,7 +155,7 @@ four fields.
 | `theme.colors` | `Record<Tokens, string>` | Resolved color tokens for the painted theme. |
 | `theme.scheme` | `ColorScheme` | Binary classification, derived from `darkThemes`. |
 | `preference` | `Names \| 'system'` | The theme the user explicitly picked. |
-| `isTransitioning` | `boolean` | Transition overlay is visible. |
+| `isTransitioning` | `boolean` | `true` from the colour-swap commit through JS cleanup; excludes initial capture/setup. |
 | `setTheme` | `(name, opts?) => 'accepted' \| 'ignored'` | Change the preference. |
 
 The split is deliberate. `theme` is what's painted right now (use it
@@ -245,12 +245,18 @@ setTheme('dark', { transition: 'pixelize', blockSize: 32 })
 ## `OriginSpec`
 
 ```ts
-type OriginSpec = TransitionOrigin | React.RefObject<View | null>
+type OriginSpec = TransitionOrigin | React.RefObject<ViewRef | null>
 ```
 
 Either an explicit point or a ref whose center is measured at call
 time. A ref that has unmounted or returns no coordinates falls back
 to the center of the screen.
+
+`ViewRef` is exported by the library and resolves to
+`React.ComponentRef<typeof View>`. On React Native 0.88 and newer
+`View` is a function component, so type your refs as
+`useRef<ViewRef>(null)`; on React Native 0.78–0.87 the same alias
+resolves to the class instance.
 
 ## `TransitionOrigin`
 

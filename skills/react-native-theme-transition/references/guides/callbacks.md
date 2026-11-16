@@ -4,7 +4,10 @@ The library exposes three callbacks. The split is intentional.
 `onTransitionStart` and `onTransitionEnd` are for animation
 lifecycle; `onThemeChange` is for "the theme is now X". Use
 `onThemeChange` as the single source of truth for persistence and
-analytics; it is the only one guaranteed to fire on every code path.
+analytics. It fires after an applied animated/instant change or capture
+fallback, but not for ignored calls, mode-only no-ops, start-callback
+exceptions or provider unmounts. It is not an acknowledgement of screen
+presentation.
 
 ## Animated Transition
 
@@ -15,11 +18,11 @@ analytics; it is the only one guaranteed to fire on every code path.
 4. snapshot captured, overlay mounted
 5. colors swapped under the overlay
 6. animation runs (duration ms)
-7. animation ends (setTimeout matched to duration)
+7. JS cleanup timer fires (configured duration; independent of UI completion)
 8. config.onTransitionEnd(name)        ← first
 9. options.onTransitionEnd(name)       ← per-call, after config
 10. config.onThemeChange(name)         ← always last
-11. next render: isTransitioning → false
+11. React commits the cleanup state, including isTransitioning → false
 ```
 
 ## Instant Switch
@@ -60,7 +63,7 @@ hiccup), the library falls back to an instant switch. But
 4. config.onThemeChange(name)
 ```
 
-> **Warning.** `onTransitionEnd` does **not** fire on capture failure. Write
+> `onTransitionEnd` does **not** fire on capture failure. Write
 > your `onTransitionStart` handlers so they are safe to run without
 > a matching end. Release any haptic engine references, clear any
 > state, and rely on `onThemeChange` for "the change is committed"
@@ -80,4 +83,4 @@ hiccup), the library falls back to an instant switch. But
 
 - [createThemeTransition](../api/create-theme-transition.md#arguments). Config-level callbacks.
 - [SetThemeOptions](../types.md#setthemeoptions). Per-call callbacks.
-- [How transitions work](../guides/how-it-works.md). The capture, swap, animate model.
+- [How transitions work](./how-it-works.md). The capture, swap, animate model.

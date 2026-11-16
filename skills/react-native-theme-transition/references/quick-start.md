@@ -7,8 +7,7 @@ applies to React Native CLI projects; only the file paths change.
 
 ## Setup
 
-### Step 1
-#### Define Your Themes
+### Define Your Themes
 
 Create a single file that defines your themes and exports the
 library's API. TypeScript infers theme names and color tokens
@@ -44,8 +43,7 @@ TypeScript now knows your theme names (`'light' | 'dark'`) and
 your token keys (`'background' | 'card' | 'text' | …`). Both
 propagate to `useTheme` and `setTheme` automatically.
 
-### Step 2
-#### Wrap Your App
+### Wrap Your App
 
 Place `ThemeTransitionProvider` as high as possible: above your
 navigation container, above any modals. The snapshot capture
@@ -59,9 +57,9 @@ import { ThemeTransitionProvider } from '@/lib/theme'
 
 export default function RootLayout() {
   return (
-        <ThemeTransitionProvider initialTheme="system">
-          <App />
-        </ThemeTransitionProvider>
+    <ThemeTransitionProvider initialTheme="system">
+      <App />
+    </ThemeTransitionProvider>
   )
 }
 ```
@@ -75,8 +73,7 @@ starting in system mode), see the
 [Persistence recipe](./recipes/persistence.md). It reads the
 stored value once at boot and passes it as `initialTheme`.
 
-### Step 3
-#### Use in Components
+### Use in Components
 
 Call `useTheme()` to read the painted theme, the user's
 preference, the mutator, and the transition flag.
@@ -89,17 +86,17 @@ export default function Home() {
   const { theme, preference, setTheme, isTransitioning } = useTheme()
 
   return (
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-          <Text style={{ color: theme.colors.text }}>
-            Current: {theme.name}
-          </Text>
-          <Pressable
-            disabled={isTransitioning}
-            onPress={() => setTheme(theme.name === 'dark' ? 'light' : 'dark')}
-          >
-            <Text style={{ color: theme.colors.primary }}>Toggle theme</Text>
-          </Pressable>
-        </View>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <Text style={{ color: theme.colors.text }}>
+        Current: {theme.name}
+      </Text>
+      <Pressable
+        disabled={isTransitioning}
+        onPress={() => setTheme(theme.name === 'dark' ? 'light' : 'dark')}
+      >
+        <Text style={{ color: theme.colors.primary }}>Toggle theme</Text>
+      </Pressable>
+    </View>
   )
 }
 ```
@@ -117,8 +114,9 @@ export default function Home() {
   be `'system'`. Use it for picker highlights and persistence.
 - **`setTheme`**. Change the preference. Accepts a concrete
   name or `'system'`.
-- **`isTransitioning`**. `true` while the overlay animation is
-  running. Use it to disable interactive controls.
+- **`isTransitioning`**. `true` from the colour-swap commit through
+  JS cleanup, excluding initial capture/setup. Use it to disable
+  controls visually; the engine blocks touches earlier.
 
 See [useTheme](./api/use-theme.md#theme-vs-preference) for the
 full decision table.

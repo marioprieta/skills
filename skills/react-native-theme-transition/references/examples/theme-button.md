@@ -38,7 +38,7 @@ export function ThemeButton() {
 }
 ```
 
-> **Warning.** Don't dim the button based on `isTransitioning` (e.g.
+> Don't dim the button based on `isTransitioning` (e.g.
 > `opacity: isTransitioning ? 0.5 : 1`). The snapshot captures
 > whatever is on screen, and a dimmed button will cross-fade with its
 > own full-opacity version and produce a visible flash. Use
@@ -50,12 +50,12 @@ A plain "Switch theme" button, a programmatic call from an effect,
 or a deep link (anything that doesn't need to highlight the *current*
 option) can just call `setTheme` directly. No state, no effects.
 
-See [Theme Picker](../examples/theme-picker.md) for the pattern when
+See [Theme Picker](./theme-picker.md) for the pattern when
 you need to highlight the user's current pick. That one reads
 `preference` from the hook.
 
 ## See Also
 
-- [Theme Toggle](../examples/theme-toggle.md). Binary dark/light switch.
-- [Theme Picker](../examples/theme-picker.md). Segmented control with `preference` highlight.
+- [Theme Toggle](./theme-toggle.md). Binary dark/light switch.
+- [Theme Picker](./theme-picker.md). Segmented control with `preference` highlight.
 - [useTheme](../api/use-theme.md). The hook reference.

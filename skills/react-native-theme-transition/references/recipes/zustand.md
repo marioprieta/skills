@@ -68,7 +68,7 @@ export default function RootLayout() {
 }
 ```
 
-> **Note.** `useThemeStore.getState()` is deliberate here. `initialTheme` is
+> `useThemeStore.getState()` is deliberate here. `initialTheme` is
 > read once when the provider mounts ([placement rules](../api/provider.md#initial-theme-behavior))
 > and ignored on subsequent re-renders, so a reactive subscription
 > would never trigger anything. Later theme changes flow through
@@ -78,8 +78,8 @@ export default function RootLayout() {
 
 Call both `setTheme` (animates and updates `preference`) and
 `setColorMode` (persists) in the same handler. Drive the highlight
-from `preference`. It updates synchronously inside `setTheme`, so
-no local state is needed.
+from `preference`, which carries the raw pick: no local state is
+needed.
 
 ```tsx
 import { View, Text, Pressable } from 'react-native'
@@ -123,10 +123,10 @@ function ThemeSettings() {
 }
 ```
 
-> **Note.** `preference` updates synchronously inside `setTheme`, so the
-> highlight paints in the same commit as the tap. Reading from the
-> store instead would lag one frame and show the wrong highlight
-> during the transition.
+> `preference` is written with the colour swap, so the highlight
+> moves together with the theme. Reading from the store instead
+> would lag behind and show the wrong highlight during the
+> transition.
 
 ## Redux / Redux Toolkit
 
@@ -147,7 +147,7 @@ In the settings screen, call `setTheme(option)` and
 
 ## MMKV
 
-> **Warning.** MMKV requires native modules and is **not compatible with Expo Go**.
+> MMKV requires native modules and is **not compatible with Expo Go**.
 > Use a [development build](https://docs.expo.dev/develop/development-builds/introduction/)
 > or the bare workflow.
 
@@ -193,6 +193,6 @@ Settings screen, same pattern: `setTheme(option)` and
 
 ## See Also
 
-- [Persisted Preference](../recipes/persistence.md). The AsyncStorage-only version.
+- [Persisted Preference](./persistence.md). The AsyncStorage-only version.
 - [Theme Picker](../examples/theme-picker.md). The picker UI built around `preference`.
 - [useTheme](../api/use-theme.md). The hook reference.

@@ -127,7 +127,7 @@ their backdrop too:
 </ThemeTransitionProvider>
 ```
 
-> **Warning.** React Native's built-in `Modal` renders in a separate native window
+> React Native's built-in `Modal` renders in a separate native window
 > and is **not** captured in the snapshot. Theme changes while a modal
 > is open will animate only the background tree; the modal contents
 > flip instantly. Use a bottom sheet (or any in-tree overlay) instead

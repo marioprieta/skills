@@ -54,7 +54,8 @@ The hook now returns four top-level fields:
 - `theme`. What's painted right now (`name`, `colors`, `scheme`). Always concrete.
 - `preference`. What the user picked. Can be `'system'`.
 - `setTheme`. Change the preference.
-- `isTransitioning`. `true` while the overlay animation runs.
+- `isTransitioning`. `true` from the colour-swap commit through JS cleanup;
+  excludes initial capture/setup.
 
 ```tsx
 // 1.x
@@ -96,20 +97,19 @@ the return value.
 
 `useTheme({ initialSelection })`, `selected`, and `select()` are all
 removed. The hook now exposes a top-level `preference` field that
-mirrors the user's raw pick (it updates synchronously inside
-`setTheme`), so pickers can drop their optimistic local state
-entirely.
+mirrors the user's raw pick (it is written with the colour swap),
+so pickers can drop their optimistic local state entirely.
 
 ```tsx
 // 1.x
 function ThemePicker() {
   const { selected, select, isTransitioning } = useTheme({
-initialSelection: 'system',
+    initialSelection: 'system',
   })
   return (['light', 'dark', 'system'] as const).map((option) => (
-<Pressable key={option} disabled={isTransitioning} onPress={() => select(option)}>
-  <Text style={{ opacity: selected === option ? 1 : 0.5 }}>{option}</Text>
-</Pressable>
+    <Pressable key={option} disabled={isTransitioning} onPress={() => select(option)}>
+      <Text style={{ opacity: selected === option ? 1 : 0.5 }}>{option}</Text>
+    </Pressable>
   ))
 }
 
@@ -117,9 +117,9 @@ initialSelection: 'system',
 function ThemePicker() {
   const { preference, setTheme, isTransitioning } = useTheme()
   return (['light', 'dark', 'system'] as const).map((option) => (
-<Pressable key={option} disabled={isTransitioning} onPress={() => setTheme(option)}>
-  <Text style={{ opacity: preference === option ? 1 : 0.5 }}>{option}</Text>
-</Pressable>
+    <Pressable key={option} disabled={isTransitioning} onPress={() => setTheme(option)}>
+      <Text style={{ opacity: preference === option ? 1 : 0.5 }}>{option}</Text>
+    </Pressable>
   ))
 }
 ```
@@ -131,8 +131,9 @@ from another component. No `useEffect` needed.
 ### Reduced Motion
 
 `useReducedMotion()` is no longer exported, and `config.reduceMotion`
-is gone. If you want to honor the OS setting, subscribe yourself and
-pass `animated: false` per call:
+is gone. The current `withTiming` call still inherits Reanimated's
+`ReduceMotion.System` default. To skip capture and overlay setup too,
+subscribe yourself and pass `animated: false` per call:
 
 ```tsx
 import { useEffect, useState } from 'react'
@@ -143,9 +144,9 @@ import { AccessibilityInfo } from 'react-native'
 function usePrefersReducedMotion() {
   const [rm, setRm] = useState(false)
   useEffect(() => {
-AccessibilityInfo.isReduceMotionEnabled().then(setRm)
-const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRm)
-return () => sub.remove()
+    AccessibilityInfo.isReduceMotionEnabled().then(setRm)
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRm)
+    return () => sub.remove()
   }, [])
   return rm
 }
@@ -208,20 +209,11 @@ clearer mental model.
 
 ## From Another Theme System
 
-### Step 1
-**Install** the library and its peer dependencies. See [Getting Started](../getting-started.md).
-
-### Step 2
-**Create the theme file** that defines your tokens and calls `createThemeTransition`.
-
-### Step 3
-**Wrap with the provider** at the root of your app.
-
-### Step 4
-**Replace** color references with `useTheme().theme.colors`.
-
-### Step 5
-**Remove** the old theme context/provider.
+1. **Install** the library and its peer dependencies. See [Getting Started](../getting-started.md).
+2. **Create the theme file** that defines your tokens and calls `createThemeTransition`.
+3. **Wrap with the provider** at the root of your app.
+4. **Replace** color references with `useTheme().theme.colors`.
+5. **Remove** the old theme context/provider.
 
 ## From Plain Context / `useState`
 
@@ -238,15 +230,15 @@ function ThemeProvider({ children }) {
   const [theme, setTheme] = useState('light')
   const colors = theme === 'light' ? lightColors : darkColors
   return (
-<ThemeContext.Provider
-  value={{
+    <ThemeContext.Provider
+      value={{
         theme,
         colors,
         toggle: () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
-  }}
->
-  {children}
-</ThemeContext.Provider>
+      }}
+    >
+      {children}
+    </ThemeContext.Provider>
   )
 }
 ```
@@ -299,25 +291,25 @@ function AppWithNavigation() {
   const { theme } = useTheme()
 
   const navTheme: Theme = useMemo(
-() => ({
-  dark: theme.scheme === 'dark',
-  colors: {
+    () => ({
+      dark: theme.scheme === 'dark',
+      colors: {
         primary: theme.colors.primary,
         background: theme.colors.background,
         card: theme.colors.card,
         text: theme.colors.text,
         border: theme.colors.border,
         notification: theme.colors.notification,
-  },
-  fonts: DefaultTheme.fonts,
-}),
-[theme],
+      },
+      fonts: DefaultTheme.fonts,
+    }),
+    [theme],
   )
 
   return (
-<NavigationContainer theme={navTheme}>
-  <AppNavigator />
-</NavigationContainer>
+    <NavigationContainer theme={navTheme}>
+      <AppNavigator />
+    </NavigationContainer>
   )
 }
 
@@ -326,7 +318,7 @@ function AppWithNavigation() {
 </ThemeTransitionProvider>
 ```
 
-See [Expo Router](../recipes/expo-router.md) for the same pattern
+See [Expo Router](./expo-router.md) for the same pattern
 applied to expo-router's `Stack`.
 
 ## Preserving an Existing `useTheme` Hook
@@ -342,12 +334,12 @@ export const ThemeTransitionProvider = api.ThemeTransitionProvider
 export function useTheme() {
   const { theme, setTheme, isTransitioning } = api.useTheme()
   return {
-colors: theme.colors,
-theme: theme.name,
-isDark: theme.scheme === 'dark',
-toggle: () => setTheme(theme.name === 'light' ? 'dark' : 'light'),
-setTheme,
-isTransitioning,
+    colors: theme.colors,
+    theme: theme.name,
+    isDark: theme.scheme === 'dark',
+    toggle: () => setTheme(theme.name === 'light' ? 'dark' : 'light'),
+    setTheme,
+    isTransitioning,
   }
 }
 ```
@@ -366,5 +358,5 @@ isTransitioning,
 
 - [Quick start](../quick-start.md). The three-step setup.
 - [useTheme](../api/use-theme.md). The hook and `setTheme` reference.
-- [Expo Router](../recipes/expo-router.md). Canonical navigation integration.
-- [Persistence](../recipes/persistence.md). Save the user's preference across launches.
+- [Expo Router](./expo-router.md). Canonical navigation integration.
+- [Persistence](./persistence.md). Save the user's preference across launches.

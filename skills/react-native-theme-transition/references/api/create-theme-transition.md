@@ -35,9 +35,9 @@ const { ThemeTransitionProvider, useTheme } = createThemeTransition({
 | `darkThemes` | `Names[]` | `[systemThemeMap.dark]` or `['dark']` | Theme names that register as a dark color scheme with the OS. The library calls `Appearance.setColorScheme` internally to keep native UI in sync. |
 | `onTransitionStart` | `(name) => void` | — | Called when an animated transition begins, before snapshot capture. Skipped for instant switches. |
 | `onTransitionEnd` | `(name) => void` | — | Called after an animated transition completes. Skipped for instant switches and capture-failure fallbacks. |
-| `onThemeChange` | `(name) => void` | — | Called on every theme change: animated, instant, or system-driven. The only callback guaranteed to fire. |
+| `onThemeChange` | `(name) => void` | — | Called after applied animated, instant, system-driven, or capture-fallback changes. Excludes ignored calls and mode-only no-ops; see [callbacks](../guides/callbacks.md). |
 
-> **Note.** `duration` is intentionally **not** a config field. Each transition
+> `duration` is intentionally **not** a config field. Each transition
 > kind has its own per-kind default tuned for that family's feel. A
 > single global override would flatten that calibration. Pass
 > `duration` per call via `setTheme(name, { duration })` instead.
@@ -46,8 +46,8 @@ const { ThemeTransitionProvider, useTheme } = createThemeTransition({
 
 | Field | Type | Description |
 |---|---|---|
-| `ThemeTransitionProvider` | `Component` | React provider that supplies animated theme colors via context. See [ThemeTransitionProvider](../api/provider.md) for placement rules and nesting examples. |
-| `useTheme` | `() => UseThemeResult` | Hook that returns the painted theme, the user's preference, the mutator, and the transition flag. See [useTheme](../api/use-theme.md). |
+| `ThemeTransitionProvider` | `Component` | React provider that supplies animated theme colors via context. See [ThemeTransitionProvider](./provider.md) for placement rules and nesting examples. |
+| `useTheme` | `() => UseThemeResult` | Hook that returns the painted theme, the user's preference, the mutator, and the transition flag. See [useTheme](./use-theme.md). |
 
 ## Example
 
@@ -225,15 +225,16 @@ misconfiguration where every theme would register as light with the
 OS and break native UI elements (alerts, date pickers, status bar
 contrast). Omit the field instead to fall back to the default.
 
-> **Warning.** Do not call `Appearance.setColorScheme` yourself. The library
+> Do not call `Appearance.setColorScheme` yourself. The library
 > tracks system mode through that call. Manual writes desync it on
 > Android, and the next `setTheme('system')` will misbehave.
 
 ## Reduced Motion
 
-The library does not honor OS Reduce Motion automatically. It is
-policy-free on accessibility. If you want to respect the system
-setting, read it yourself and pass `animated: false` per call.
+The library does not set `withTiming.reduceMotion`, so Reanimated
+uses its default `ReduceMotion.System`. This can finish the visual
+animation before the library's independent JS cleanup timer. To
+skip capture and overlay setup too, pass `animated: false` per call.
 
 ```ts
 import { AccessibilityInfo } from 'react-native'
@@ -260,11 +261,11 @@ invalid. The most common cases:
 
 `setTheme` validates its options at every call and throws on
 out-of-range numeric inputs. See
-[setTheme runtime errors](../api/use-theme.md#runtime-errors).
+[setTheme runtime errors](./use-theme.md#runtime-errors).
 
 ## See Also
 
-- [useTheme](../api/use-theme.md). The hook returned by the factory.
+- [useTheme](./use-theme.md). The hook returned by the factory.
 - [SetThemeOptions](../types.md#setthemeoptions). Every per-call option for `setTheme`.
 - [Quick start](../quick-start.md). The three-step setup.
 - [How transitions work](../guides/how-it-works.md). The capture, swap, animate model.

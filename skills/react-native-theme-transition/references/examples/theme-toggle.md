@@ -2,14 +2,15 @@
 
 A custom toggle that replaces the native `<Switch>`. The thumb
 position reads `theme.scheme` (the binary `'light' | 'dark'` flag
-the library exposes), so derived state paints in the same commit as
-the tap, and the engine's 1-frame settle before capture lets that
-paint land before the snapshot.
+the library exposes), so the thumb moves in the commit that applies
+the new theme and the snapshot covering the transition always shows
+the old position.
 
-> **Warning.** Don't use the native React Native `<Switch>` for theme toggling.
+> Don't use the native React Native `<Switch>` for theme toggling.
 > iOS `UISwitch` runs a ~250 ms Core Animation with no completion
-> callback, so the snapshot catches the thumb mid-slide and the
-> result flickers. Build your own toggle with plain styles.
+> callback, so it can still be sliding when the snapshot fires and
+> the captured thumb ends up in between. Build your own toggle with
+> plain styles.
 
 ## Example
 
@@ -87,13 +88,13 @@ against `theme.name === 'dark'` stops making sense.
 Reanimated's `useAnimatedStyle` + `useEffect` → `sharedValue` adds at
 least one frame of latency (JS → UI thread). The snapshot can fire
 before the native view catches up, and the toggle thumb ends up
-mid-slide in the captured image. Plain styles update inside React's
-commit, so the snapshot catches the final position. Same pattern
-applies to the [Theme Picker](../examples/theme-picker.md) and the
-[Checkmark List](../examples/checkmark-list.md).
+mid-slide in the captured image. Plain styles move inside the
+commit that swaps the colour tokens, behind the opaque overlay. Same pattern
+applies to the [Theme Picker](./theme-picker.md) and the
+[Checkmark List](./checkmark-list.md).
 
 ## See Also
 
-- [Theme Picker](../examples/theme-picker.md). Segmented control built around `preference`.
-- [Theme Button](../examples/theme-button.md). Minimal cycle-button without state.
+- [Theme Picker](./theme-picker.md). Segmented control built around `preference`.
+- [Theme Button](./theme-button.md). Minimal cycle-button without state.
 - [useTheme](../api/use-theme.md). The hook reference.

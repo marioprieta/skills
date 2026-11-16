@@ -3,23 +3,26 @@
 `react-native-theme-transition` brings animated theme switching to
 React Native. It snapshots the current screen, swaps your theme
 underneath, and animates the snapshot away with one of nine styles.
-Built on Skia and Reanimated, both bundled in modern Expo SDKs (54+),
-so it works in Expo Go without a prebuild.
+Built on Skia and Reanimated, with no package-specific native module.
+Expo Go needs matching JavaScript and native peers; bundling those libraries
+alone does not prove compatibility. See [getting started](./getting-started.md)
+for the tested SDK 58 baseline and older-runtime limitations.
 
 ## Highlights
 
 - **Nine transition styles.** `fade`, `circularReveal`, `heart`,
   `star`, `wipe`, `slide`, `split`, `pixelize`, `dissolve`.
   Reveal-style transitions support an `inverted` variant.
-- **Expo Go ready.** Works with Expo SDK 55+ out of the box. Bare
-  React Native CLI also supported.
+- **Expo Go ready.** No package-specific native module. Current device checks
+  use native Debug builds on Expo SDK 58 / React Native 0.88.1, after earlier
+  Expo Go checks; see [compatibility](./getting-started.md).
 - **Full TypeScript inference.** `useTheme()` and `setTheme()` know
   your theme names and color tokens without manual generics.
 - **System theme built in.** Follows OS appearance with zero-flash
   startup. `preference` and `theme` are kept separate so pickers
   and persistence work correctly.
-- **Strict runtime validation.** Invalid options throw immediately
-  with clear error messages.
+- **Runtime checks.** Configuration and numeric options have descriptive
+  validation errors. Per-call variant names remain primarily TypeScript-checked.
 - **React Compiler compatible.** All hooks follow the
   [Rules of React](https://react.dev/reference/rules).
 
@@ -43,10 +46,9 @@ so it works in Expo Go without a prebuild.
 - **Static overlay.** The transition renders a captured snapshot,
   so dynamic content (videos, live counters) appears frozen for the
   duration of the animation.
-- **No built-in Reduce Motion handling.** The library is
-  policy-free on accessibility. If you want to honor the OS Reduce
-  Motion setting, call `setTheme(name, { animated: false })` from
-  your own wrapper.
+- **Reduce Motion.** `withTiming` inherits Reanimated's system
+  default. To skip capture and overlay setup as well, call
+  `setTheme(name, { animated: false })` from your own wrapper.
 
 ## Requirements
 

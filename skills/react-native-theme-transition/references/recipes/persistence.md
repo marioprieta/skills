@@ -18,17 +18,17 @@ export default function RootLayout() {
   const [initial, setInitial] = useState<Pref | null>(null)
 
   useEffect(() => {
-AsyncStorage.getItem('theme-preference').then((v) => {
-  setInitial(['light', 'dark', 'system'].includes(v ?? '') ? (v as Pref) : 'system')
-})
+    AsyncStorage.getItem('theme-preference').then((v) => {
+      setInitial(['light', 'dark', 'system'].includes(v ?? '') ? (v as Pref) : 'system')
+    })
   }, [])
 
   if (!initial) return null // or your splash component
 
   return (
-<ThemeTransitionProvider initialTheme={initial}>
-  <App />
-</ThemeTransitionProvider>
+    <ThemeTransitionProvider initialTheme={initial}>
+      <App />
+    </ThemeTransitionProvider>
   )
 }
 ```
@@ -46,13 +46,13 @@ function ThemeSettings() {
   const { theme, preference, setTheme, isTransitioning } = useTheme()
 
   const handleSelect = (pref: (typeof OPTIONS)[number]) => {
-setTheme(pref)
-AsyncStorage.setItem('theme-preference', pref)
+    setTheme(pref)
+    AsyncStorage.setItem('theme-preference', pref)
   }
 
   return (
-<View style={{ flexDirection: 'row', gap: 8 }}>
-  {OPTIONS.map((option) => (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {OPTIONS.map((option) => (
         <Pressable
           key={option}
           disabled={isTransitioning}
@@ -72,15 +72,15 @@ AsyncStorage.setItem('theme-preference', pref)
             {option}
           </Text>
         </Pressable>
-  ))}
-</View>
+      ))}
+    </View>
   )
 }
 ```
 
 `preference` is the right field for persistence: it's the raw value
-the user picked (including `'system'`), updates synchronously inside
-`setTheme`, and stays in sync when the theme changes from anywhere
+the user picked (including `'system'`), is written when `setTheme`
+applies the new theme, and stays in sync when the theme changes from anywhere
 else (OS appearance, programmatic call). Write it to storage, read
 it back on startup, and pass it directly to `initialTheme`.
 
@@ -107,7 +107,7 @@ const stored = await AsyncStorage.getItem('theme-preference')
 ## See Also
 
 - [Troubleshooting: Double Transition on App Start](../guides/troubleshooting.md#double-transition-on-app-start). The same pattern, diagnosed from the symptom side.
-- [State Managers](../recipes/zustand.md). Bridge with Zustand, Redux, or MMKV.
+- [State Managers](./zustand.md). Bridge with Zustand, Redux, or MMKV.
 - [Theme Picker](../examples/theme-picker.md). Segmented control built around `preference`.
 - [Checkmark List](../examples/checkmark-list.md). iOS Settings-style list.
 - [useTheme](../api/use-theme.md). The hook reference.
