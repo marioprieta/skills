@@ -5,7 +5,7 @@ license: MIT
 metadata:
   author: marioprieta
   version: "2.0.3"
-  documentation_commit: "68330887b1367b151e9206e64d1dbe92dc77bf88"
+  documentation_commit: "afc5e6585d0ad5c6de90c067ff6c3ea01ba13adb"
   tags: react-native, theme, dark-mode, animation, transition, expo, reanimated, skia, view-transition
 ---
 
